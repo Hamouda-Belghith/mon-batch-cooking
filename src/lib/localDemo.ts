@@ -1,7 +1,12 @@
 import type { MealSlot } from "@/lib/supabase/database.types";
 import type { Dish, DishIngredient } from "@/features/dishes/types";
 import { MEAL_SLOTS, type MealCycle, type MealCycleEntry } from "@/features/cycles/types";
-import type { PlannedMeal, SpecialMeal } from "@/features/planning/types";
+import type {
+  PlannedMeal,
+  SavedWeek,
+  SavedWeekEntry,
+  SpecialMeal,
+} from "@/features/planning/types";
 import { getDb, type LocalShoppingListItem } from "./db/dexie";
 import { DEMO_USER_ID, getSupabase } from "./supabase/client";
 import { addDays, toISODate } from "./date";
@@ -68,6 +73,7 @@ interface DemoState {
   mealCycles: DemoMealCycle[];
   mealCycleEntries: DemoMealCycleEntry[];
   plannedMeals: DemoPlannedMeal[];
+  savedWeeks: SavedWeek[];
 }
 
 function createState(): DemoState {
@@ -78,6 +84,7 @@ function createState(): DemoState {
     mealCycles: [],
     mealCycleEntries: [],
     plannedMeals: [],
+    savedWeeks: [],
   };
 }
 
@@ -648,14 +655,8 @@ export async function generateDemoShoppingList(
 
   const db = getDb();
   const userId = DEMO_USER_ID;
-  await db.shoppingListItems
-    .filter(
-      (item) =>
-        item.periodStart === periodStart &&
-        item.periodEnd === periodEnd &&
-        item.section === "dishes"
-    )
-    .delete();
+  // Une seule liste « dishes » à la fois (voir `generateShoppingList`).
+  await db.shoppingListItems.filter((item) => item.section === "dishes").delete();
 
   const rows: LocalShoppingListItem[] = [];
 
@@ -670,7 +671,8 @@ export async function generateDemoShoppingList(
         periodEnd,
         quantity,
         unit,
-        isChecked: false,
+        isChecked: true,
+        isBought: false,
         section: "dishes",
         updatedAt: now(),
       });
@@ -721,6 +723,7 @@ export async function addDemoExtraItem(
   if (existing) {
     await db.shoppingListItems.update(existing.id, {
       quantity: existing.quantity + quantity,
+      isChecked: true,
       updatedAt: now(),
     });
   } else {
@@ -733,93 +736,40 @@ export async function addDemoExtraItem(
       periodEnd: null,
       quantity,
       unit: normalizedUnit,
-      isChecked: false,
+      isChecked: true,
+      isBought: false,
       section: "extra",
       updatedAt: now(),
     });
   }
 }
 
-/**
- * Envoie le contenu actuel d'une section (« dishes » sur `period`, ou
- * « extra ») vers la liste « À acheter ». Fusionne avec un article déjà
- * présent (même ingrédient + unité) en additionnant les quantités —
- * voir `exportSection` (generate.ts) pour la sémantique détaillée, même
- * comportement en mode démo.
- */
-export async function exportDemoSection(
-  source: "dishes" | "extra",
-  period?: { periodStart: string; periodEnd: string }
-): Promise<{ count: number }> {
-  const db = getDb();
-  const userId = DEMO_USER_ID;
-
-  const sourceItems = await db.shoppingListItems
-    .filter((item) => {
-      if (item.section !== source) return false;
-      if (source === "dishes") {
-        return item.periodStart === (period?.periodStart ?? null) && item.periodEnd === (period?.periodEnd ?? null);
-      }
-      return item.periodStart === null;
-    })
-    .toArray();
-
-  if (sourceItems.length === 0) {
-    throw new Error(
-      source === "dishes"
-        ? "« Cette semaine » est vide : rien à exporter."
-        : "« Courses supplémentaires » est vide : rien à exporter."
-    );
-  }
-
-  const existingFinal = await db.shoppingListItems
-    .filter((item) => item.section === "final" && item.periodStart === null)
-    .toArray();
-  const existingByKey = new Map(
-    existingFinal.map((item) => [`${item.ingredientId}-${item.unit}`, item])
-  );
-
-  for (const item of sourceItems) {
-    const key = `${item.ingredientId}-${item.unit}`;
-    const existing = existingByKey.get(key);
-    if (existing) {
-      await db.shoppingListItems.update(existing.id, {
-        quantity: existing.quantity + item.quantity,
-        updatedAt: now(),
-      });
-    } else {
-      const row: LocalShoppingListItem = {
-        id: crypto.randomUUID(),
-        userId,
-        ingredientId: item.ingredientId,
-        ingredientName: item.ingredientName,
-        periodStart: null,
-        periodEnd: null,
-        quantity: item.quantity,
-        unit: item.unit,
-        isChecked: false,
-        section: "final",
-        updatedAt: now(),
-      };
-      await db.shoppingListItems.add(row);
-      existingByKey.set(key, row);
-    }
-  }
-
-  return { count: sourceItems.length };
+export async function fetchDemoSavedWeeks(): Promise<SavedWeek[]> {
+  const state = loadState();
+  // Même règle que la cascade côté Supabase : une entrée dont le plat a
+  // été supprimé disparaît.
+  const dishIds = new Set(state.dishes.map((d) => d.id));
+  return state.savedWeeks.map((week) => ({
+    ...week,
+    entries: week.entries.filter((e) => e.special || (e.dishId && dishIds.has(e.dishId))),
+  }));
 }
 
-/** Vide entièrement la liste « À acheter » (bouton « Vider »). */
-export async function clearDemoFinalList(): Promise<void> {
-  const db = getDb();
-  await db.shoppingListItems.filter((item) => item.section === "final").delete();
-}
-
-export async function refreshDemoShoppingList(
-  _periodStart: string,
-  _periodEnd: string
+/** Enregistre une semaine ; remplace celle qui porte déjà ce nom. */
+export async function saveDemoSavedWeek(
+  name: string,
+  entries: SavedWeekEntry[]
 ): Promise<void> {
-  return;
+  const state = loadState();
+  state.savedWeeks = state.savedWeeks.filter((w) => w.name !== name);
+  state.savedWeeks.push({ id: crypto.randomUUID(), name, createdAt: now(), entries });
+  saveState(state);
+}
+
+export async function deleteDemoSavedWeek(id: string): Promise<void> {
+  const state = loadState();
+  state.savedWeeks = state.savedWeeks.filter((w) => w.id !== id);
+  saveState(state);
 }
 
 export function isDemoMode(): boolean {

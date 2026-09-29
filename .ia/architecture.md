@@ -71,7 +71,8 @@ Tables principales :
 | `meal_cycles`          | Motif unique de répétition (fréquence libre, en semaines), piloté depuis le Planning |
 | `meal_cycle_entries`   | Créneaux du motif (jour relatif + repas + plat)                        |
 | `planned_meals`        | Planning calendaire réel (override possible sans casser le motif ; `special`, voir plus bas) |
-| `shopping_list_items`  | Liste de courses (3 sections via `section`, voir plus bas), cochable, source de l'offline |
+| `shopping_list_items`  | Liste de courses (2 sections via `section`, voir plus bas), cochable, source de l'offline |
+| `saved_weeks` / `saved_week_entries` | Semaines enregistrées, réutilisables pour remplir le planning (voir plus bas) |
 
 Point clé : un seul motif de répétition par utilisateur
 (`meal_cycles`/`meal_cycle_entries`), avec une fréquence libre en
@@ -133,51 +134,56 @@ de répétition (`meal_cycle_entries.dish_id` reste `not null`) :
 seulement » quand `special` est fourni, sans poser la question de
 portée même si un motif est actif.
 
-**Liste de courses en trois sections (`shopping_list_items.section`)**,
-présentées comme deux onglets + une liste toujours visible sur l'écran
-`/courses` :
+**Liste de courses en deux sections (`shopping_list_items.section`)**,
+présentées comme deux onglets sur l'écran `/courses` :
 - `dishes` (onglet « Depuis le planning ») : générée depuis le planning
   sur une période choisie (`period_start`/`period_end` non null pour
-  cette section seulement) — comportement historique, inchangé.
+  cette section seulement). **Une seule liste à la fois** : une
+  génération supprime toutes les lignes `dishes` de l'utilisateur,
+  quelle que soit leur période (migration `0012`), sinon « À acheter »
+  additionnerait d'anciennes périodes.
 - `extra` (onglet « Courses supplémentaires ») : ajoutée à la main
   (recherche/autocomplétion sur les ingrédients déjà connus, sinon
   création à la volée — réutilise le référentiel `ingredients`, comme
   les ingrédients de plat). Liste **continue** : `period_start`/
-  `period_end` valent `null`, pas de notion de durée.
-- `final` (section « À acheter », toujours visible sous les deux
-  onglets) : cochable, remplie par le bouton « Ajouter à la liste
-  d'achat » de chacune des deux premières sections, vidée manuellement
-  (bouton « Vider », supprime toutes les lignes `final` de
-  l'utilisateur). Liste continue elle aussi (`period_start`/
-  `period_end` null).
+  `period_end` valent `null`.
 
-Le rendu de « À acheter » est extrait dans
-`src/features/shopping-list/FinalListSection.tsx` (composant autonome :
-charge ses propres données via `useShoppingList`), réutilisé à deux
-endroits : en bas de `/courses` (`ShoppingListScreen.tsx`) et sur son
-propre onglet de navigation `/a-acheter`
-(`FinalListScreen.tsx`, ajouté dans `src/app/nav.tsx`), pour y accéder
-directement sans passer par les onglets de génération.
+**« À acheter » est calculée, pas stockée** (depuis `0012`, l'ancienne
+section `final` et ses boutons d'export ont disparu) :
+- `is_checked` sur une ligne `dishes`/`extra` = « à acheter ». Coché
+  par défaut à la génération / à l'ajout (un ajout qui fusionne avec
+  une ligne `extra` décochée la recoche).
+- `FinalListSection.tsx` regroupe les lignes cochées des deux sections
+  par `ingredient_id` + `unit` (quantités additionnées). Une ligne
+  affichée peut donc correspondre à plusieurs lignes en base.
+- `is_bought` = « dans le panier » (case cochée sur « À acheter ») ;
+  cocher une ligne fusionnée met à jour toutes ses lignes sources
+  (`setItemsBought`). Décocher un article dans son onglet remet aussi
+  `is_bought` à false. « ✕ » sur « À acheter » décoche les lignes
+  sources ; « Vider » (`clearPurchaseList`) décoche tout — rien n'est
+  supprimé des onglets.
 
-**Export = fusion, pas remplacement.** `exportSection` (`generate.ts`)
-additionne la quantité de chaque article de la section source à la
-ligne `final` correspondante (même `ingredient_id` + `unit`), ou crée
-la ligne si absente — jamais de suppression automatique. Exporter
-plusieurs fois après avoir régénéré/ajouté des articles accumule donc
-sans perdre ce qui était déjà dans « À acheter » (bouton « Ajouter à la
-liste d'achat ») ; réexporter le MÊME
-contenu sans rien changer entre deux clics additionne deux fois (pas de
-détection d'export identique) — le bouton « Vider » est la seule façon
-de remettre la liste à zéro. Limite connue : si le même ingrédient
-existe dans les deux sections, « À acheter » fusionne quand même (une
-seule ligne, unicité par ingrédient + unité, pas par section d'origine
-— contrairement à la première version de cette fonctionnalité qui
-gardait une ligne par section, voir `.ia/decisions.md` 2026-09-22).
+Le rendu de « À acheter » (`FinalListSection.tsx`, composant autonome
+via `useShoppingList`) est réutilisé en bas de `/courses`
+(`ShoppingListScreen.tsx`) et sur l'onglet `/a-acheter`
+(`FinalListScreen.tsx`, qui rejoue la file offline puis rafraîchit le
+cache à l'ouverture).
 
 Un article `extra` ajouté deux fois (même ingrédient + unité) fusionne
 ses quantités au lieu de dupliquer (recherche d'une ligne existante
 avant insert, pas de contrainte unique en base sur les sections sans
 période — voir migration `0011`).
+
+**Semaines enregistrées** (`saved_weeks` + `saved_week_entries`,
+migration `0013`) : une semaine du planning gardée sous un nom
+(`day_offset` 0 = lundi … 6, `meal_slot`, `dish_id` XOR `special`).
+Code : `src/features/planning/savedWeeks.ts` (+ équivalent démo dans
+`localDemo.ts`, clé `savedWeeks` de l'état local). Enregistrer un nom
+existant remplace l'ancienne. Appliquer (`applySavedWeek`) = `clearWeek`
+puis `setMealWithScope(..., "this_week")` pour chaque entrée : avec une
+répétition active, ce sont des overrides de cette semaine seulement, le
+motif n'est pas modifié. Supprimer un plat supprime ses entrées
+(`on delete cascade`). Indépendant de `meal_cycles`.
 
 **Créneaux de repas** : l'enum Postgres `meal_slot_type` vaut
 `breakfast | lunch | snack | dinner` (migration 0006 ajoute `snack`).
@@ -197,10 +203,11 @@ base — ce sont des préférences d'affichage, pas des données partagées.
 
 ## Stratégie offline (liste de courses uniquement)
 
-Concerne uniquement le cochage/retrait d'un article déjà présent. Les
-autres actions (générer depuis le planning, ajouter un article
-supplémentaire, exporter une section vers la liste finale) nécessitent
-une connexion réseau, comme le reste de l'app.
+Concerne uniquement le cochage (dans les onglets ou « dans le panier »
+sur « À acheter », actions `toggle_checked` / `toggle_bought` de la
+file) et le retrait d'un article déjà présent. Les autres actions
+(générer depuis le planning, ajouter un article supplémentaire)
+nécessitent une connexion réseau, comme le reste de l'app.
 
 1. Lecture : `shopping_list_items` est répliqué dans Dexie
    (`src/lib/db/dexie.ts`), qui sert de source de vérité pour l'UI —
@@ -223,7 +230,7 @@ src/
   features/
     dishes/               → plats et leurs ingrédients
     cycles/               → constantes repas + types du motif (plus d'UI dédiée)
-    planning/             → planning + répétition (repeat.ts)
+    planning/             → planning + répétition (repeat.ts) + semaines enregistrées (savedWeeks.ts)
     shopping-list/        → génération + offline de la liste de courses
   lib/
     supabase/             → client Supabase + types générés du schéma

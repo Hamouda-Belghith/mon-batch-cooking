@@ -33,6 +33,11 @@ accueillir d'autres foyers pour l'instant.
   la main sur des semaines à venir et entrent en conflit avec la
   fréquence choisie, l'utilisateur en est averti avant de valider (pour
   changer de fréquence, ou confirmer le remplacement).
+- Enregistrer une semaine du Planning sous un nom (plats + jours/repas,
+  repas spéciaux compris), puis s'en servir plus tard pour remplir une
+  autre semaine : la semaine affichée est alors entièrement remplacée
+  (après confirmation). Plusieurs semaines enregistrées possibles,
+  supprimables ; indépendant de la répétition.
 - Associer une photo (optionnelle) à un plat, visible sur sa fiche
   (écran Plats) ; le Planning n'affiche que le nom du plat.
 - Renseigner (optionnellement) les calories et les protéines d'un plat,
@@ -46,17 +51,21 @@ accueillir d'autres foyers pour l'instant.
   ingrédients des plats planifiés sur une période).
 - Permettre à l'utilisateur de vérifier ce qu'il lui manque avant de
   faire les courses (liste de courses cochable).
-- L'écran Courses a deux onglets : « Cette semaine » (générée depuis
-  les plats planifiés sur une période choisie, inchangé) et « Courses
-  supplémentaires » (ajout à la main, avec recherche parmi les
-  ingrédients déjà utilisés — sinon création à la volée). Chacun a un
-  bouton « Exporter vers « À acheter » ». En dessous, toujours visible :
-  la liste « À acheter », cochable, qui accumule ce qui a été exporté
-  (pas liée à une période) et se vide avec un bouton « Vider ». « À
-  acheter » doit être consultable et modifiable hors-ligne (usage
-  typique : au supermarché, sans réseau) ; générer/ajouter/exporter/vider
-  suppose une connexion réseau (comme le reste de l'app hors liste de
-  courses).
+- L'écran Courses a deux onglets : « Depuis le planning » (générée
+  depuis les plats planifiés sur une période choisie ; une nouvelle
+  génération remplace la précédente) et « Courses supplémentaires »
+  (ajout à la main, avec recherche parmi les ingrédients déjà utilisés
+  — sinon création à la volée). Chaque article a une case à cocher :
+  **coché = à acheter**, et il apparaît alors automatiquement dans la
+  liste « À acheter » (plus de bouton d'export). Les articles générés
+  ou ajoutés sont cochés par défaut ; on décoche ce qu'on a déjà.
+  « À acheter » (en bas de l'écran Courses et sur son propre onglet)
+  fusionne les articles cochés par ingrédient + unité ; y cocher un
+  article le met « dans le panier », « ✕ » le décoche dans son onglet
+  d'origine, « Vider » décoche tout. « À acheter » doit être
+  consultable et modifiable hors-ligne (usage typique : au supermarché,
+  sans réseau) ; générer/ajouter suppose une connexion réseau (comme le
+  reste de l'app hors liste de courses).
 - Rechercher un plat par son nom (ou sa description) depuis l'écran
   Plats, pour retrouver rapidement une recette au fur et à mesure que
   la liste s'agrandit.

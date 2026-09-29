@@ -1,8 +1,19 @@
 # État actuel du projet (résumé rapide)
 
-Date: 2026-09-22
+Date: 2026-09-29
 
 Résumé:
+- **« À acheter » automatique + semaines enregistrées** (2026-09-29) :
+  les articles des onglets « Depuis le planning » et « Courses
+  supplémentaires » ont une case à cocher (cochés par défaut) ; tout
+  article coché apparaît automatiquement dans « À acheter » — boutons
+  « Ajouter à la liste d'achat » supprimés. Sur « À acheter », cocher =
+  « dans le panier ». « Depuis le planning » ne garde plus qu'une liste
+  (la dernière générée). Dans le Planning, panneau « Semaines
+  enregistrées » : enregistrer la semaine affichée sous un nom, et
+  remplir (remplacer) une semaine depuis une semaine enregistrée.
+  Migrations `0012_shopping_list_checked_sources.sql` et
+  `0013_saved_weeks.sql` (voir `.ia/decisions.md`).
 - **Icône de l'application** (2026-09-22) : `public/icons/icon-192.png`
   et `icon-512.png` (référencées par `public/manifest.json`, icône
   d'écran d'accueil PWA) n'étaient que des placeholders cassés

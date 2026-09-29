@@ -132,6 +132,7 @@ export interface Database {
           quantity: number;
           unit: string;
           is_checked: boolean;
+          is_bought: boolean;
           section: string;
           updated_at: string;
         };
@@ -143,12 +144,47 @@ export interface Database {
           quantity: number;
           unit: string;
           is_checked?: boolean;
+          is_bought?: boolean;
           section?: string;
           updated_at?: string;
         };
         Update: Partial<
           Database["public"]["Tables"]["shopping_list_items"]["Insert"]
         >;
+      };
+      saved_weeks: {
+        Row: {
+          id: string;
+          user_id: string;
+          name: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["saved_weeks"]["Insert"]>;
+      };
+      saved_week_entries: {
+        Row: {
+          id: string;
+          saved_week_id: string;
+          day_offset: number;
+          meal_slot: MealSlot;
+          dish_id: string | null;
+          special: string | null;
+        };
+        Insert: {
+          id?: string;
+          saved_week_id: string;
+          day_offset: number;
+          meal_slot: MealSlot;
+          dish_id?: string | null;
+          special?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["saved_week_entries"]["Insert"]>;
       };
     };
   };

@@ -23,3 +23,24 @@ export interface PlannedMeal {
   special: SpecialMeal | null;
   mealCycleId: string | null;
 }
+
+/** Une case d'une semaine enregistrée : 0 = lundi … 6 = dimanche. */
+export interface SavedWeekEntry {
+  dayOffset: number;
+  mealSlot: MealSlot;
+  /** Mutuellement exclusif avec `special`, comme pour `PlannedMeal`. */
+  dishId: string | null;
+  special: SpecialMeal | null;
+}
+
+/**
+ * Semaine enregistrée : les repas d'une semaine du planning, gardés
+ * sous un nom pour remplir plus tard une autre semaine. Indépendante du
+ * motif de répétition (voir `supabase/migrations/0013_saved_weeks.sql`).
+ */
+export interface SavedWeek {
+  id: string;
+  name: string;
+  createdAt: string;
+  entries: SavedWeekEntry[];
+}

@@ -56,18 +56,17 @@ export async function flushPendingMutations(): Promise<void> {
 
   for (const mutation of pending) {
     try {
-      if (mutation.action === "toggle_checked") {
-        const { error } = await supabase
-          .from("shopping_list_items")
-          .update({
-            is_checked: mutation.payload.isChecked,
-            updated_at: new Date().toISOString(),
-          } as never)
-          .eq("user_id", userId)
-          .eq("id", mutation.itemId);
+      const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (mutation.payload.isChecked !== undefined) update.is_checked = mutation.payload.isChecked;
+      if (mutation.payload.isBought !== undefined) update.is_bought = mutation.payload.isBought;
 
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from("shopping_list_items")
+        .update(update as never)
+        .eq("user_id", userId)
+        .eq("id", mutation.itemId);
+
+      if (error) throw error;
 
       await getDb().pendingMutations.delete(mutation.id);
     } catch (err) {

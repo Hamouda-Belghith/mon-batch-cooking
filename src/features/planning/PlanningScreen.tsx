@@ -35,7 +35,13 @@ import {
   type RepeatInterval,
 } from "./repeat";
 import { sumNutrition } from "./nutrition";
-import { SPECIAL_MEAL_LABELS, type PlannedMeal, type SpecialMeal } from "./types";
+import { applySavedWeek, deleteSavedWeek, fetchSavedWeeks, saveWeek } from "./savedWeeks";
+import {
+  SPECIAL_MEAL_LABELS,
+  type PlannedMeal,
+  type SavedWeek,
+  type SpecialMeal,
+} from "./types";
 
 const WEEK_DAYS = 7;
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -137,6 +143,11 @@ export function PlanningScreen() {
     startISO: string;
     endISO: string;
   } | null>(null);
+
+  /** Modale des semaines enregistrées : enregistrer la semaine affichée, ou en choisir une pour la remplir. */
+  const [savedWeeksModal, setSavedWeeksModal] = useState<"save" | "use" | null>(null);
+  const [savedWeeks, setSavedWeeks] = useState<SavedWeek[] | null>(null);
+  const [saveName, setSaveName] = useState("");
 
   const weekStartISO = toISODate(weekStart);
   const weekEndISO = toISODate(addDays(weekStart, WEEK_DAYS - 1));
@@ -314,6 +325,77 @@ export function PlanningScreen() {
     }
   }
 
+  async function openSavedWeeks(mode: "save" | "use") {
+    setError(null);
+    setHint(null);
+    setSavedWeeks(null);
+    setSaveName(`Semaine du ${formatWeekRange(weekStartISO, weekEndISO)}`);
+    setSavedWeeksModal(mode);
+    try {
+      setSavedWeeks(await fetchSavedWeeks());
+    } catch (err) {
+      setSavedWeeksModal(null);
+      setError(err instanceof Error ? err.message : "Chargement impossible");
+    }
+  }
+
+  async function handleSaveWeek(e: React.FormEvent) {
+    e.preventDefault();
+    const name = saveName.trim();
+    if (!name) return;
+    if (
+      savedWeeks?.some((w) => w.name === name) &&
+      !window.confirm(`Une semaine « ${name} » existe déjà. La remplacer ?`)
+    ) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const { count } = await saveWeek(name, weekStartISO);
+      setSavedWeeksModal(null);
+      setHint(`Semaine enregistrée sous « ${name} » (${count} repas).`);
+    } catch (err) {
+      setSavedWeeksModal(null);
+      setError(err instanceof Error ? err.message : "Enregistrement impossible");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleApplySavedWeek(week: SavedWeek) {
+    const ok = window.confirm(
+      `Remplacer tous les repas de la semaine du ${formatWeekRange(weekStartISO, weekEndISO)} ` +
+        `par « ${week.name} » ?`
+    );
+    if (!ok) return;
+    setBusy(true);
+    setSavedWeeksModal(null);
+    try {
+      await applySavedWeek(week, weekStartISO);
+      await loadMeals();
+      setHint(`Semaine remplie avec « ${week.name} ».`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de remplir la semaine");
+      await loadMeals().catch(() => undefined);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDeleteSavedWeek(week: SavedWeek) {
+    if (!window.confirm(`Supprimer la semaine enregistrée « ${week.name} » ?`)) return;
+    setBusy(true);
+    try {
+      await deleteSavedWeek(week.id);
+      setSavedWeeks((prev) => prev?.filter((w) => w.id !== week.id) ?? null);
+    } catch (err) {
+      setSavedWeeksModal(null);
+      setError(err instanceof Error ? err.message : "Suppression impossible");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function handleCellClick(date: string, mealSlot: MealSlot) {
     setPendingDishId(undefined);
     setEditingCell({ date, mealSlot });
@@ -469,6 +551,27 @@ export function PlanningScreen() {
               prolonger automatiquement.
             </p>
           )}
+        </div>
+
+        <div className="repeat-panel">
+          <span className="repeat-panel-label">Semaines enregistrées</span>
+          <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
+            <Button
+              size="sm"
+              disabled={busy || !meals || meals.length === 0}
+              onClick={() => void openSavedWeeks("save")}
+            >
+              Enregistrer cette semaine
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy}
+              onClick={() => void openSavedWeeks("use")}
+            >
+              Remplir depuis une semaine enregistrée
+            </Button>
+          </div>
         </div>
 
         <div className="repeat-panel">
@@ -663,6 +766,77 @@ export function PlanningScreen() {
           ›
         </button>
       </div>
+
+      {savedWeeksModal ? (
+        <Modal
+          title={
+            savedWeeksModal === "save" ? "Enregistrer cette semaine" : "Semaines enregistrées"
+          }
+          onClose={() => setSavedWeeksModal(null)}
+        >
+          {savedWeeks === null ? (
+            <Spinner />
+          ) : savedWeeksModal === "save" ? (
+            <form className="stack" onSubmit={(e) => void handleSaveWeek(e)}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="saved-week-name">Nom</label>
+                <input
+                  id="saved-week-name"
+                  className="input"
+                  autoFocus
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                />
+              </div>
+              <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.85rem" }}>
+                Les {meals?.length ?? 0} repas de la semaine affichée (plats et jours) pourront
+                ensuite remplir n&apos;importe quelle semaine du planning.
+              </p>
+              <Button type="submit" disabled={busy || !saveName.trim()}>
+                Enregistrer
+              </Button>
+            </form>
+          ) : savedWeeks.length === 0 ? (
+            <p className="empty" style={{ padding: "1rem" }}>
+              Aucune semaine enregistrée. Remplis une semaine puis clique sur « Enregistrer cette
+              semaine ».
+            </p>
+          ) : (
+            <div className="stack" style={{ gap: "0.55rem" }}>
+              <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.85rem" }}>
+                Remplace tous les repas de la semaine du {formatWeekRange(weekStartISO, weekEndISO)}.
+              </p>
+              {savedWeeks.map((week) => (
+                <div key={week.id} className="shop-item">
+                  <span className="shop-name">
+                    {week.name}
+                    <br />
+                    <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 500 }}>
+                      {week.entries.length} repas
+                    </span>
+                  </span>
+                  <Button
+                    size="sm"
+                    disabled={busy || week.entries.length === 0}
+                    onClick={() => void handleApplySavedWeek(week)}
+                  >
+                    Utiliser
+                  </Button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-icon"
+                    aria-label={`Supprimer ${week.name}`}
+                    disabled={busy}
+                    onClick={() => void handleDeleteSavedWeek(week)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </Modal>
+      ) : null}
 
       {editingCell ? (
         <Modal

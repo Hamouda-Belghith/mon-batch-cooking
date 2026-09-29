@@ -6,6 +6,43 @@ haut du fichier (ordre antéchronologique).
 
 ---
 
+## 2026-09-29 — « À acheter » calculée depuis les articles cochés ; semaines enregistrées
+
+**Contexte** : demande de ne plus avoir à cliquer sur « Ajouter à la
+liste d'achat » : « À acheter » doit contenir automatiquement les
+articles cochés des deux onglets. Et pouvoir enregistrer une semaine du
+planning (plats + jours) pour la réutiliser plus tard.
+
+**Décisions** :
+- **« À acheter » n'est plus une section stockée** mais une vue
+  calculée : lignes `dishes`/`extra` avec `is_checked = true`,
+  fusionnées par ingrédient + unité côté client. Choix confirmé par
+  l'utilisateur (alternative proposée : tout ajouter sans case à
+  cocher dans les onglets). La section `final` est supprimée
+  (migration `0012`).
+- **Nouvelle colonne `is_bought`** pour « dans le panier » : `is_checked`
+  a pris le sens « fait partie de la liste », il fallait un second état
+  pour pouvoir cocher au supermarché sans que l'article disparaisse.
+- **Coché par défaut** à la génération et à l'ajout : on décoche ce
+  qu'on a déjà (plus rapide que tout cocher). La migration coche toutes
+  les lignes existantes (elles n'avaient pas de case jusque-là).
+- **Une seule liste `dishes`** (la dernière générée remplace toutes les
+  précédentes, quelle que soit la période) : sinon des listes
+  d'anciennes périodes, invisibles dans l'onglet, gonfleraient « À
+  acheter ». La migration ne garde que la période la plus récemment
+  modifiée par utilisateur.
+- **« Vider » décoche** au lieu de supprimer : les onglets sources sont
+  la donnée, « À acheter » n'en est qu'une vue.
+- **Semaines enregistrées = nouvelles tables** `saved_weeks` /
+  `saved_week_entries` plutôt que réutiliser `meal_cycles` (contrainte
+  « un seul motif » par utilisateur, et sémantique de répétition
+  différente). Appliquer une semaine **remplace toute la semaine
+  affichée** (choix de l'utilisateur, alternative : ne remplir que les
+  cases vides), via des overrides « cette semaine seulement » pour ne
+  jamais toucher au motif de répétition. Les repas spéciaux sont inclus.
+
+---
+
 ## 2026-09-22 — Liste de courses : deux onglets + « À acheter » continue (au lieu de trois sections empilées, liées à une période)
 
 **Contexte** : la présentation de la veille (trois sections empilées

@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { FinalListSection } from "./FinalListSection";
+import { refreshShoppingList } from "./useShoppingList";
+import { flushPendingMutations } from "./syncQueue";
 
 /**
  * Écran dédié à la liste « À acheter » (même contenu que la section du
@@ -8,6 +11,15 @@ import { FinalListSection } from "./FinalListSection";
  * pour la consulter/cocher sans passer par les onglets de génération.
  */
 export function FinalListScreen() {
+  useEffect(() => {
+    void (async () => {
+      // Rejoue d'abord les modifications hors-ligne, sinon le
+      // rafraîchissement les masquerait jusqu'à la prochaine synchro.
+      await flushPendingMutations();
+      await refreshShoppingList();
+    })();
+  }, []);
+
   return (
     <div className="screen">
       <div className="screen-header">

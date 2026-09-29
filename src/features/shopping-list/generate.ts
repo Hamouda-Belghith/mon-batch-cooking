@@ -7,14 +7,9 @@ import {
   toISODate,
   type DurationUnit,
 } from "@/lib/date";
-import {
-  clearLocalShoppingListPeriod,
-  refreshShoppingList,
-} from "./useShoppingList";
+import { refreshShoppingList } from "./useShoppingList";
 import {
   addDemoExtraItem,
-  clearDemoFinalList,
-  exportDemoSection,
   generateDemoShoppingList,
   isDemoMode,
 } from "@/lib/localDemo";
@@ -32,10 +27,11 @@ interface PlannedDishRow {
 }
 
 /**
- * Agrège les ingrédients des plats planifiés sur une période et écrase
- * la section « dishes » de la liste de courses de cette période (nouvelle
- * génération = nouvelle liste). Les sections « extra » et « final » ne
- * sont pas touchées. Même ingrédient + même unité : quantités
+ * Agrège les ingrédients des plats planifiés sur une période et remplace
+ * entièrement la section « dishes » (une seule liste à la fois, quelle
+ * que soit la période précédente — sinon « À acheter » additionnerait
+ * d'anciennes périodes). Les articles générés sont cochés, donc
+ * directement dans « À acheter ». La section « extra » n'est pas touchée. Même ingrédient + même unité : quantités
  * additionnées. Un plat planifié plusieurs fois multiplie ses quantités.
  * Un repas spécial (ex. « Manger dehors », voir `features/planning/types.ts`)
  * n'a pas d'ingrédients et n'est jamais compté.
@@ -117,16 +113,12 @@ export async function generateShoppingList(
     .from("shopping_list_items")
     .delete()
     .eq("user_id", userId)
-    .eq("period_start", periodStart)
-    .eq("period_end", periodEnd)
     .eq("section", "dishes")) as MutateResult;
 
   if (delError) {
     console.warn("Impossible de vider l'ancienne liste", delError);
     throw new Error("Impossible de régénérer la liste");
   }
-
-  await clearLocalShoppingListPeriod(periodStart, periodEnd, "dishes");
 
   const rows: Array<{
     user_id: string;
@@ -135,6 +127,7 @@ export async function generateShoppingList(
     period_end: string;
     quantity: number;
     unit: string;
+    is_checked: boolean;
     section: "dishes";
   }> = [];
 
@@ -147,6 +140,7 @@ export async function generateShoppingList(
         period_end: periodEnd,
         quantity,
         unit,
+        is_checked: true,
         section: "dishes",
       });
     }
@@ -161,7 +155,7 @@ export async function generateShoppingList(
     throw new Error("Impossible d'enregistrer la liste");
   }
 
-  await refreshShoppingList(periodStart, periodEnd);
+  await refreshShoppingList();
 
   return { count: rows.length };
 }
@@ -194,7 +188,8 @@ async function upsertShoppingIngredient(
  * liste continue — pas de période). Réutilise l'ingrédient référentiel
  * existant s'il porte déjà ce nom (voir `fetchIngredients`), sinon en
  * crée un nouveau. Fusionne avec un article déjà présent (même
- * ingrédient + unité) plutôt que de dupliquer une ligne.
+ * ingrédient + unité) plutôt que de dupliquer une ligne. L'article est
+ * coché (donc dans « À acheter »), y compris s'il existait décoché.
  */
 export async function addExtraItem(
   name: string,
@@ -241,6 +236,7 @@ export async function addExtraItem(
       .from("shopping_list_items")
       .update({
         quantity: Number(existingRows[0].quantity) + quantity,
+        is_checked: true,
         updated_at: new Date().toISOString(),
       } as never)
       .eq("id", existingRows[0].id)) as MutateResult;
@@ -254,144 +250,13 @@ export async function addExtraItem(
       ingredient_id: ingredientId,
       quantity,
       unit: normalizedUnit,
+      is_checked: true,
       section: "extra",
     } as never)) as MutateResult;
     if (error) {
       console.warn("Impossible d'ajouter l'article", error);
       throw new Error("Impossible d'ajouter cet article");
     }
-  }
-
-  await refreshShoppingList();
-}
-
-/**
- * Envoie le contenu actuel d'une section (« dishes » sur `periodStart`/
- * `periodEnd`, ou « extra ») vers la liste « À acheter ». Fusionne avec
- * un article déjà présent (même ingrédient + unité) en additionnant les
- * quantités, plutôt que de dupliquer une ligne — on peut donc exporter
- * plusieurs fois de suite (après avoir régénéré ou ajouté des articles)
- * sans perdre ce qui y était déjà. Un export répété du MÊME contenu
- * (sans rien changer entre les deux clics) additionne deux fois : la
- * liste « À acheter » se vide avec le bouton « Vider », pas en
- * réexportant.
- */
-export async function exportSection(
-  source: "dishes" | "extra",
-  period?: { periodStart: string; periodEnd: string }
-): Promise<{ count: number }> {
-  if (isDemoMode()) {
-    return exportDemoSection(source, period);
-  }
-
-  const supabase = getSupabase();
-  if (!supabase) throw new Error("Supabase n'est pas configuré");
-
-  const userId = await getCurrentUserId();
-  if (!userId) throw new Error("Utilisateur non connecté");
-
-  let query = supabase
-    .from("shopping_list_items")
-    .select("ingredient_id, quantity, unit")
-    .eq("user_id", userId)
-    .eq("section", source);
-  query = source === "dishes" && period
-    ? query.eq("period_start", period.periodStart).eq("period_end", period.periodEnd)
-    : query.is("period_start", null);
-
-  const { data: sourceItems, error: sourceError } = (await query) as {
-    data: { ingredient_id: string; quantity: number; unit: string }[] | null;
-    error: PostgrestError | null;
-  };
-
-  if (sourceError) {
-    console.warn("Impossible de charger la section à exporter", sourceError);
-    throw new Error("Impossible d'exporter cette section");
-  }
-  if (!sourceItems || sourceItems.length === 0) {
-    throw new Error(
-      source === "dishes"
-        ? "« Cette semaine » est vide : rien à exporter."
-        : "« Courses supplémentaires » est vide : rien à exporter."
-    );
-  }
-
-  const { data: existingFinal, error: finalError } = (await supabase
-    .from("shopping_list_items")
-    .select("id, ingredient_id, unit, quantity")
-    .eq("user_id", userId)
-    .eq("section", "final")
-    .is("period_start", null)) as {
-    data: { id: string; ingredient_id: string; unit: string; quantity: number }[] | null;
-    error: PostgrestError | null;
-  };
-
-  if (finalError) {
-    console.warn("Impossible de charger la liste « À acheter »", finalError);
-    throw new Error("Impossible d'exporter cette section");
-  }
-
-  const existingByKey = new Map(
-    (existingFinal ?? []).map((row) => [`${row.ingredient_id}-${row.unit}`, row])
-  );
-
-  for (const item of sourceItems) {
-    const key = `${item.ingredient_id}-${item.unit}`;
-    const existing = existingByKey.get(key);
-    if (existing) {
-      const { error } = (await supabase
-        .from("shopping_list_items")
-        .update({
-          quantity: Number(existing.quantity) + Number(item.quantity),
-          updated_at: new Date().toISOString(),
-        } as never)
-        .eq("id", existing.id)) as MutateResult;
-      if (error) {
-        console.warn("Impossible de mettre à jour la liste « À acheter »", error);
-        throw new Error("Impossible d'exporter cette section");
-      }
-    } else {
-      const { error } = (await supabase.from("shopping_list_items").insert({
-        user_id: userId,
-        ingredient_id: item.ingredient_id,
-        quantity: item.quantity,
-        unit: item.unit,
-        section: "final",
-      } as never)) as MutateResult;
-      if (error) {
-        console.warn("Impossible d'écrire la liste « À acheter »", error);
-        throw new Error("Impossible d'exporter cette section");
-      }
-    }
-  }
-
-  await refreshShoppingList(period?.periodStart, period?.periodEnd);
-
-  return { count: sourceItems.length };
-}
-
-/** Vide entièrement la liste « À acheter » (bouton « Vider »). */
-export async function clearFinalList(): Promise<void> {
-  if (isDemoMode()) {
-    await clearDemoFinalList();
-    return;
-  }
-
-  const supabase = getSupabase();
-  if (!supabase) throw new Error("Supabase n'est pas configuré");
-
-  const userId = await getCurrentUserId();
-  if (!userId) throw new Error("Utilisateur non connecté");
-
-  const { error } = (await supabase
-    .from("shopping_list_items")
-    .delete()
-    .eq("user_id", userId)
-    .eq("section", "final")) as MutateResult;
-
-  if (error) {
-    console.warn("Impossible de vider la liste « À acheter »", error);
-    throw new Error("Impossible de vider la liste");
   }
 
   await refreshShoppingList();

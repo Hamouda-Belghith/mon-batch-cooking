@@ -6,10 +6,14 @@ import { Spinner } from "@/components/ui/Spinner";
 import { UNITS } from "@/lib/units";
 import { fetchIngredients } from "@/features/dishes/api";
 import { formatDateLong, formatQuantity, type DurationUnit } from "@/lib/date";
-import { useShoppingList, refreshShoppingList, removeItem } from "./useShoppingList";
+import {
+  useShoppingList,
+  refreshShoppingList,
+  removeItem,
+  toggleItemChecked,
+} from "./useShoppingList";
 import {
   addExtraItem,
-  exportSection,
   generateShoppingList,
   getDefaultPeriod,
   periodFromDuration,
@@ -28,7 +32,7 @@ type Tab = "week" | "extra";
 
 /** Statut d'une action, rattaché à la zone de la page qui l'a déclenchée. */
 type ActionStatus = {
-  scope: "add" | "dishes" | "extra" | "final" | null;
+  scope: "add" | "dishes" | null;
   message: string | null;
   error: string | null;
 };
@@ -54,16 +58,33 @@ function StatusBanner({ status, scope }: { status: ActionStatus; scope: ActionSt
   return null;
 }
 
-/** Article d'une section d'origine, sans case à cocher : rien à acheter tant que ce n'est pas exporté vers « À acheter ». */
-function StagingRow({
+/**
+ * Article d'une section d'origine. Coché = à acheter : il apparaît
+ * automatiquement dans « À acheter ». Décoché (déjà chez nous, pas
+ * besoin) : grisé, reste dans l'onglet mais hors de la liste d'achat.
+ */
+function SourceRow({
   item,
+  onToggle,
   onRemove,
 }: {
   item: ShoppingListItem;
+  onToggle: (id: string, checked: boolean) => void;
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className="shop-item">
+    <div className={`shop-item ${item.isChecked ? "" : "checked"}`}>
+      <input
+        type="checkbox"
+        className="shop-checkbox"
+        checked={item.isChecked}
+        onChange={(e) => onToggle(item.id, e.target.checked)}
+        aria-label={
+          item.isChecked
+            ? `${item.ingredientName} — dans la liste d'achat`
+            : `${item.ingredientName} — pas à acheter`
+        }
+      />
       <span className="shop-name">{item.ingredientName}</span>
       <span className="shop-qty">
         {formatQuantity(item.quantity)} {item.unit}
@@ -164,13 +185,12 @@ export function ShoppingListScreen() {
 
   const items = useShoppingList();
 
-  const dishesItems = useMemo(
-    () =>
-      items?.filter(
-        (i) => i.section === "dishes" && i.periodStart === periodStart && i.periodEnd === periodEnd
-      ) ?? [],
-    [items, periodStart, periodEnd]
-  );
+  // Une seule liste « dishes » à la fois (la dernière générée), quelle
+  // que soit la durée actuellement choisie dans le formulaire.
+  const dishesItems = useMemo(() => items?.filter((i) => i.section === "dishes") ?? [], [items]);
+  const dishesPeriod = dishesItems[0]?.periodStart && dishesItems[0]?.periodEnd
+    ? { start: dishesItems[0].periodStart, end: dishesItems[0].periodEnd }
+    : null;
   const extraItems = useMemo(() => items?.filter((i) => i.section === "extra") ?? [], [items]);
 
   useEffect(() => {
@@ -187,11 +207,16 @@ export function ShoppingListScreen() {
 
   useEffect(() => {
     setStatus(IDLE_STATUS);
-    void (async () => {
-      await refreshShoppingList(periodStart, periodEnd);
-      await flushPendingMutations();
-    })();
   }, [periodStart, periodEnd]);
+
+  useEffect(() => {
+    void (async () => {
+      // Rejoue d'abord les modifications hors-ligne, sinon le
+      // rafraîchissement les masquerait jusqu'à la prochaine synchro.
+      await flushPendingMutations();
+      await refreshShoppingList();
+    })();
+  }, []);
 
   async function handleAddExtra(e: React.FormEvent) {
     e.preventDefault();
@@ -236,28 +261,8 @@ export function ShoppingListScreen() {
     }
   }
 
-  async function handleExport(section: "dishes" | "extra") {
-    setBusy(true);
-    setStatus({ scope: section, message: null, error: null });
-    try {
-      const { count } = await exportSection(
-        section,
-        section === "dishes" ? { periodStart, periodEnd } : undefined
-      );
-      setStatus({
-        scope: section,
-        message: `${count} article${count > 1 ? "s" : ""} ajouté${count > 1 ? "s" : ""} à la liste d'achat.`,
-        error: null,
-      });
-    } catch (err) {
-      setStatus({
-        scope: section,
-        message: null,
-        error: err instanceof Error ? err.message : "Export impossible",
-      });
-    } finally {
-      setBusy(false);
-    }
+  async function handleToggle(itemId: string, isChecked: boolean) {
+    await toggleItemChecked(itemId, isChecked);
   }
 
   async function handleRemove(itemId: string) {
@@ -289,6 +294,11 @@ export function ShoppingListScreen() {
           Courses supplémentaires
         </button>
       </div>
+
+      <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.85rem" }}>
+        Les articles cochés apparaissent automatiquement dans « À acheter ». Décoche ce que tu as
+        déjà.
+      </p>
 
       {activeTab === "week" ? (
         <>
@@ -341,13 +351,11 @@ export function ShoppingListScreen() {
             <div className="card stack" style={{ gap: "0.55rem" }}>
               <div className="row-spread">
                 <p className="section-title">Articles ({dishesItems.length})</p>
-                <Button
-                  size="sm"
-                  disabled={busy || dishesItems.length === 0}
-                  onClick={() => void handleExport("dishes")}
-                >
-                  Ajouter à la liste d'achat
-                </Button>
+                {dishesPeriod ? (
+                  <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                    Du {formatDateLong(dishesPeriod.start)} au {formatDateLong(dishesPeriod.end)}
+                  </span>
+                ) : null}
               </div>
               {dishesItems.length === 0 ? (
                 <p style={{ margin: 0, color: "var(--muted)" }}>
@@ -356,7 +364,7 @@ export function ShoppingListScreen() {
                 </p>
               ) : (
                 dishesItems.map((item) => (
-                  <StagingRow key={item.id} item={item} onRemove={handleRemove} />
+                  <SourceRow key={item.id} item={item} onToggle={handleToggle} onRemove={handleRemove} />
                 ))
               )}
             </div>
@@ -420,13 +428,6 @@ export function ShoppingListScreen() {
             <div className="card stack" style={{ gap: "0.55rem" }}>
               <div className="row-spread">
                 <p className="section-title">Articles ({extraItems.length})</p>
-                <Button
-                  size="sm"
-                  disabled={busy || extraItems.length === 0}
-                  onClick={() => void handleExport("extra")}
-                >
-                  Ajouter à la liste d'achat
-                </Button>
               </div>
               {extraItems.length === 0 ? (
                 <p style={{ margin: 0, color: "var(--muted)" }}>
@@ -434,10 +435,9 @@ export function ShoppingListScreen() {
                 </p>
               ) : (
                 extraItems.map((item) => (
-                  <StagingRow key={item.id} item={item} onRemove={handleRemove} />
+                  <SourceRow key={item.id} item={item} onToggle={handleToggle} onRemove={handleRemove} />
                 ))
               )}
-              <StatusBanner status={status} scope="extra" />
             </div>
           )}
         </>

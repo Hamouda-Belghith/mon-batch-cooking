@@ -8,13 +8,17 @@ export interface LocalShoppingListItem {
   ingredientId: string;
   ingredientName: string; // dénormalisé pour affichage offline sans jointure
   // ISO date (YYYY-MM-DD). Uniquement pour la section "dishes" (générée
-  // sur une période) ; null pour "extra"/"final", listes continues.
+  // sur une période) ; null pour "extra", liste continue.
   periodStart: string | null;
   periodEnd: string | null;
   quantity: number;
   unit: string;
   isChecked: boolean;
-  section: ShoppingSection;
+  // Absent des lignes mises en cache avant son ajout : lu avec `?? false`.
+  isBought?: boolean;
+  // "final" : ancienne section, peut subsister dans un cache local
+  // antérieur à 0012 ; ignorée à la lecture (voir useShoppingList).
+  section: ShoppingSection | "final";
   updatedAt: string;
 }
 
@@ -24,8 +28,10 @@ export interface PendingMutation {
   id: string; // uuid de la mutation elle-même
   userId: string;
   itemId: string; // id du shopping_list_item concerné
-  action: "toggle_checked";
-  payload: { isChecked: boolean };
+  // toggle_checked : ajouter/retirer de « À acheter » (retirer remet
+  // aussi isBought à false) ; toggle_bought : mis dans le panier.
+  action: "toggle_checked" | "toggle_bought";
+  payload: { isChecked?: boolean; isBought?: boolean };
   createdAt: string;
 }
 
