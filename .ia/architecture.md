@@ -174,6 +174,13 @@ ses quantités au lieu de dupliquer (recherche d'une ligne existante
 avant insert, pas de contrainte unique en base sur les sections sans
 période — voir migration `0011`).
 
+**Formulaire de plat partagé** : `src/features/dishes/DishFormModal.tsx`
+(création/modification, photo, ingrédients, apports) est utilisé par
+l'écran Plats et par la modale de choix de plat du Planning (création
+à la volée ; `onSaved` reçoit l'id du plat, que le Planning place dans
+la case via le même chemin qu'un choix normal, question de portée
+comprise si une répétition est active).
+
 **Semaines enregistrées** (`saved_weeks` + `saved_week_entries`,
 migration `0013`) : une semaine du planning gardée sous un nom
 (`day_offset` 0 = lundi … 6, `meal_slot`, `dish_id` XOR `special`).

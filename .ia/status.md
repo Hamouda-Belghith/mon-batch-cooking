@@ -3,6 +3,10 @@
 Date: 2026-09-29
 
 Résumé:
+- **Choix d'un plat dans le Planning** (2026-09-29) : barre de
+  recherche + bouton « + Nouveau plat » dans la modale de choix. Le
+  formulaire de plat est extrait dans `DishFormModal.tsx`, partagé avec
+  l'écran Plats. Pas de migration.
 - **« À acheter » automatique + semaines enregistrées** (2026-09-29) :
   les articles des onglets « Depuis le planning » et « Courses
   supplémentaires » ont une case à cocher (cochés par défaut) ; tout

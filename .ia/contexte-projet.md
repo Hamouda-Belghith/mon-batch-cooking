@@ -33,6 +33,10 @@ accueillir d'autres foyers pour l'instant.
   la main sur des semaines à venir et entrent en conflit avec la
   fréquence choisie, l'utilisateur en est averti avant de valider (pour
   changer de fréquence, ou confirmer le remplacement).
+- En choisissant le plat d'une case du Planning : barre de recherche
+  pour filtrer les plats par nom, et bouton « + Nouveau plat » qui
+  ouvre le même formulaire que l'écran Plats (nom prérempli avec la
+  recherche) ; le plat créé remplit directement la case.
 - Enregistrer une semaine du Planning sous un nom (plats + jours/repas,
   repas spéciaux compris), puis s'en servir plus tard pour remplir une
   autre semaine : la semaine affichée est alors entièrement remplacée

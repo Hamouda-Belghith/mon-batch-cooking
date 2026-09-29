@@ -16,6 +16,7 @@ import {
 } from "@/lib/date";
 import type { MealSlot } from "@/lib/supabase/database.types";
 import type { Dish } from "@/features/dishes/types";
+import { DishFormModal } from "@/features/dishes/DishFormModal";
 import {
   fetchDishesForCycles,
   MEAL_SLOTS,
@@ -134,6 +135,11 @@ export function PlanningScreen() {
     date: string;
     mealSlot: MealSlot;
   } | null>(null);
+
+  // Recherche dans la liste des plats de la modale de choix, et création
+  // d'un plat sans quitter le Planning (le plat créé remplit la case).
+  const [dishSearch, setDishSearch] = useState("");
+  const [creatingDish, setCreatingDish] = useState(false);
 
   const [pendingDishId, setPendingDishId] = useState<string | null | undefined>(
     undefined
@@ -398,6 +404,8 @@ export function PlanningScreen() {
 
   function handleCellClick(date: string, mealSlot: MealSlot) {
     setPendingDishId(undefined);
+    setDishSearch("");
+    setCreatingDish(false);
     setEditingCell({ date, mealSlot });
   }
 
@@ -450,6 +458,12 @@ export function PlanningScreen() {
     }
   }
 
+  async function handleDishCreated(dishId: string) {
+    setCreatingDish(false);
+    setDishes(await fetchDishesForCycles());
+    handlePickDish(dishId);
+  }
+
   async function handleScopeChoice(scope: MealEditScope) {
     if (!editingCell || pendingDishId === undefined) return;
     const { date, mealSlot } = editingCell;
@@ -466,6 +480,12 @@ export function PlanningScreen() {
     : undefined;
 
   const choosingScope = editingCell !== null && pendingDishId !== undefined;
+
+  const normalizedDishSearch = dishSearch.trim().toLowerCase();
+  const filteredDishes =
+    normalizedDishSearch === ""
+      ? dishes
+      : dishes.filter((dish) => dish.name.toLowerCase().includes(normalizedDishSearch));
 
   const visibleSlots = MEAL_SLOTS.filter(
     (slot) =>
@@ -838,7 +858,16 @@ export function PlanningScreen() {
         </Modal>
       ) : null}
 
-      {editingCell ? (
+      {editingCell && creatingDish ? (
+        <DishFormModal
+          dish={null}
+          initialName={dishSearch.trim()}
+          onClose={() => setCreatingDish(false)}
+          onSaved={handleDishCreated}
+        />
+      ) : null}
+
+      {editingCell && !creatingDish ? (
         <Modal
           title={
             choosingScope
@@ -876,39 +905,60 @@ export function PlanningScreen() {
               </Button>
             </div>
           ) : (
-            <div className="dish-pick-list">
-              <button
-                type="button"
-                className="dish-pick-item"
-                onClick={() => handlePickDish(null)}
-                disabled={!editingMeal}
-                style={{ color: "var(--danger)" }}
-              >
-                Retirer le repas
-              </button>
-              <button
-                type="button"
-                className="dish-pick-item dish-pick-special"
-                onClick={() => handlePickSpecial("eating_out")}
-              >
-                <span aria-hidden="true">🍽️</span>
-                {SPECIAL_MEAL_LABELS.eating_out}
-              </button>
-              {dishes.map((dish) => (
+            <div className="stack" style={{ gap: "0.5rem" }}>
+              <div className="row" style={{ gap: "0.5rem", flexWrap: "nowrap" }}>
+                <input
+                  type="search"
+                  className="input"
+                  placeholder="Rechercher un plat…"
+                  aria-label="Rechercher un plat"
+                  value={dishSearch}
+                  onChange={(e) => setDishSearch(e.target.value)}
+                  style={{ flex: 1, minWidth: 0 }}
+                />
+                <Button size="sm" onClick={() => setCreatingDish(true)} style={{ whiteSpace: "nowrap" }}>
+                  + Nouveau plat
+                </Button>
+              </div>
+              <div className="dish-pick-list">
                 <button
-                  key={dish.id}
                   type="button"
                   className="dish-pick-item"
-                  onClick={() => handlePickDish(dish.id)}
+                  onClick={() => handlePickDish(null)}
+                  disabled={!editingMeal}
+                  style={{ color: "var(--danger)" }}
                 >
-                  {dish.name}
+                  Retirer le repas
                 </button>
-              ))}
-              {dishes.length === 0 ? (
-                <p className="empty" style={{ padding: "1rem" }}>
-                  Aucun plat. Crée d&apos;abord des plats dans l&apos;onglet « Plats ».
-                </p>
-              ) : null}
+                <button
+                  type="button"
+                  className="dish-pick-item dish-pick-special"
+                  onClick={() => handlePickSpecial("eating_out")}
+                >
+                  <span aria-hidden="true">🍽️</span>
+                  {SPECIAL_MEAL_LABELS.eating_out}
+                </button>
+                {filteredDishes.map((dish) => (
+                  <button
+                    key={dish.id}
+                    type="button"
+                    className="dish-pick-item"
+                    onClick={() => handlePickDish(dish.id)}
+                  >
+                    {dish.name}
+                  </button>
+                ))}
+                {dishes.length === 0 ? (
+                  <p className="empty" style={{ padding: "1rem" }}>
+                    Aucun plat. Crée-en un avec « + Nouveau plat ».
+                  </p>
+                ) : filteredDishes.length === 0 ? (
+                  <p className="empty" style={{ padding: "1rem" }}>
+                    Aucun plat ne correspond à « {dishSearch.trim()} ». « + Nouveau plat » le crée
+                    avec ce nom.
+                  </p>
+                ) : null}
+              </div>
             </div>
           )}
         </Modal>
