@@ -654,9 +654,15 @@ button {
   font-weight: 650;
   font-size: 0.8rem;
   line-height: 1.25;
-  word-break: break-word;
+  /* Césure française (lang="fr") : un mot trop long pour la colonne,
+     étroite sur téléphone, est coupé avec un tiret plutôt qu'au hasard. */
+  hyphens: auto;
+  -webkit-hyphens: auto;
+  overflow-wrap: anywhere;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  /* 4 lignes tiennent dans la hauteur minimale de la case (92px) : la
+     plupart des noms s'affichent en entier sans agrandir la grille. */
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
