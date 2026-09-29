@@ -63,7 +63,7 @@ accueillir d'autres foyers pour l'instant.
   **coché = à acheter**, et il apparaît alors automatiquement dans la
   liste « À acheter » (plus de bouton d'export). Les articles générés
   ou ajoutés sont cochés par défaut ; on décoche ce qu'on a déjà.
-  « À acheter » (en bas de l'écran Courses et sur son propre onglet)
+  « À acheter » (uniquement sur son propre onglet de navigation)
   fusionne les articles cochés par ingrédient + unité ; y cocher un
   article le met « dans le panier », « ✕ » le décoche dans son onglet
   d'origine, « Vider » décoche tout. « À acheter » doit être

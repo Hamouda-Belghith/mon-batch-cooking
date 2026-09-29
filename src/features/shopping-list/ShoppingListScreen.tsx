@@ -19,7 +19,6 @@ import {
   periodFromDuration,
 } from "./generate";
 import { flushPendingMutations } from "./syncQueue";
-import { FinalListSection } from "./FinalListSection";
 import type { ShoppingListItem } from "./types";
 
 const UNIT_OPTIONS: { value: DurationUnit; label: string }[] = [
@@ -442,8 +441,6 @@ export function ShoppingListScreen() {
           )}
         </>
       )}
-
-      <FinalListSection />
     </div>
   );
 }

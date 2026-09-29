@@ -164,10 +164,10 @@ section `final` et ses boutons d'export ont disparu) :
   supprimé des onglets.
 
 Le rendu de « À acheter » (`FinalListSection.tsx`, composant autonome
-via `useShoppingList`) est réutilisé en bas de `/courses`
-(`ShoppingListScreen.tsx`) et sur l'onglet `/a-acheter`
-(`FinalListScreen.tsx`, qui rejoue la file offline puis rafraîchit le
-cache à l'ouverture).
+via `useShoppingList`) n'est affiché que sur l'onglet de navigation
+`/a-acheter` (`FinalListScreen.tsx`, qui rejoue la file offline puis
+rafraîchit le cache à l'ouverture) — plus en bas de `/courses`
+(demande utilisateur du 2026-09-29).
 
 Un article `extra` ajouté deux fois (même ingrédient + unité) fusionne
 ses quantités au lieu de dupliquer (recherche d'une ligne existante

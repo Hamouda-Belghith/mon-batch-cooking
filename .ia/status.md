@@ -3,6 +3,9 @@
 Date: 2026-09-29
 
 Résumé:
+- **« À acheter » retirée du bas de l'écran Courses** (2026-09-29) :
+  elle n'est plus visible que via son onglet de navigation
+  `/a-acheter`. Pas de migration.
 - **Choix d'un plat dans le Planning** (2026-09-29) : barre de
   recherche + bouton « + Nouveau plat » dans la modale de choix. Le
   formulaire de plat est extrait dans `DishFormModal.tsx`, partagé avec

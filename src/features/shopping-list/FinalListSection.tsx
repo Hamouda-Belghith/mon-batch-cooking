@@ -69,8 +69,8 @@ function PurchaseRow({
  * articles cochés des onglets « Depuis le planning » et « Courses
  * supplémentaires » (rien à exporter). Y cocher un article le met dans
  * le panier ; « ✕ » le décoche dans sa section d'origine. Composant
- * autonome (charge ses propres données) pour pouvoir être affiché à la
- * fois en bas de l'écran Courses et sur son propre onglet de navigation.
+ * autonome (charge ses propres données), affiché par `FinalListScreen`
+ * (onglet de navigation « À acheter »).
  */
 export function FinalListSection() {
   const items = useShoppingList();
