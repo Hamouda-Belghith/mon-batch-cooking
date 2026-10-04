@@ -245,6 +245,7 @@ src/
     db/                   → configuration Dexie (IndexedDB)
 supabase/
   migrations/             → schéma SQL versionné
+docs/                     → guides de travail (agent-teams.md : équipes d'agents Claude Code)
 .ia/                      → documents de contexte pour les assistants IA
 ```
 
