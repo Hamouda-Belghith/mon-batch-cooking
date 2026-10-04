@@ -234,6 +234,9 @@ nécessitent une connexion réseau, comme le reste de l'app.
 ```
 src/
   app/                    → routes Next.js (App Router) + service worker (sw.ts)
+                            globals.css = design system (tokens, composants, responsive)
+  components/ui/          → Button, Field, Modal (feuille en bas sur téléphone, modales
+                            empilables), Feedback (useConfirm / useToast), Icon (SVG)
   features/
     dishes/               → plats et leurs ingrédients
     cycles/               → constantes repas + types du motif (plus d'UI dédiée)

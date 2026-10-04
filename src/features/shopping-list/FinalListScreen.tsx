@@ -22,11 +22,12 @@ export function FinalListScreen() {
 
   return (
     <div className="screen">
-      <div className="screen-header">
+      <header className="page-header">
         <div>
-          <h1 style={{ margin: 0 }}>À acheter</h1>
+          <h1 className="page-title">À acheter</h1>
+          <p className="page-sub">Disponible même sans réseau.</p>
         </div>
-      </div>
+      </header>
       <FinalListSection />
     </div>
   );

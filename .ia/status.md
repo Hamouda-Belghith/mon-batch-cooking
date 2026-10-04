@@ -1,8 +1,20 @@
 # État actuel du projet (résumé rapide)
 
-Date: 2026-09-29
+Date: 2026-10-04
 
 Résumé:
+- **Refonte UX/UI** (2026-10-04, branche `ui-rework`) : nouvelle identité
+  « carnet de marché » (papier vert-de-gris, encre basilic, marqueur
+  moutarde pour aujourd'hui et le compteur « À acheter » ; police unique
+  Bricolage Grotesque). Barre d'onglets en bas sur téléphone (badge du
+  nombre d'articles à acheter). Planning : la semaine en titre, options
+  (Répétition, Semaines enregistrées, Affichage, Vider) regroupées dans
+  une barre d'outils qui ouvre des panneaux ; agenda jour par jour sur
+  téléphone. Confirmations et messages via `components/ui/Feedback.tsx`
+  (plus aucun `window.confirm`). Plats en liste cliquable, suppression
+  déplacée dans le formulaire. Courses/À acheter : lignes entièrement
+  cliquables, onglets segmentés avec compteurs, barre de progression du
+  panier. Aucune logique métier ni migration modifiée.
 - **« À acheter » retirée du bas de l'écran Courses** (2026-09-29) :
   elle n'est plus visible que via son onglet de navigation
   `/a-acheter`. Pas de migration.

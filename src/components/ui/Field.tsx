@@ -20,7 +20,7 @@ export function Field({
     <div className="field">
       <label htmlFor={name}>{label}</label>
       <input id={name} name={name} className="input" {...rest} />
-      {hint ? <small style={{ color: "var(--muted)" }}>{hint}</small> : null}
+      {hint ? <small className="field-hint">{hint}</small> : null}
     </div>
   );
 }
@@ -38,7 +38,7 @@ export function SelectField({
       <select id={name} name={name} className="select" {...rest}>
         {children}
       </select>
-      {hint ? <small style={{ color: "var(--muted)" }}>{hint}</small> : null}
+      {hint ? <small className="field-hint">{hint}</small> : null}
     </div>
   );
 }
@@ -53,7 +53,7 @@ export function TextareaField({
     <div className="field">
       <label htmlFor={name}>{label}</label>
       <textarea id={name} name={name} className="input textarea" {...rest} />
-      {hint ? <small style={{ color: "var(--muted)" }}>{hint}</small> : null}
+      {hint ? <small className="field-hint">{hint}</small> : null}
     </div>
   );
 }

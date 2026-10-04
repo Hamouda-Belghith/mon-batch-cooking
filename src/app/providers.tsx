@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { AuthProvider, useAuth } from "@/features/auth/AuthContext";
 import { LoginScreen } from "@/features/auth/LoginScreen";
 import { setupAutoSync } from "@/features/shopping-list/syncQueue";
+import { FeedbackProvider } from "@/components/ui/Feedback";
 import { Spinner } from "@/components/ui/Spinner";
 import { Nav } from "./nav";
 
@@ -15,14 +16,7 @@ function AppGate({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
+      <div className="fullscreen-center">
         <Spinner label="Connexion…" />
       </div>
     );
@@ -41,7 +35,9 @@ function AppGate({ children }: { children: ReactNode }) {
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <AuthProvider>
-      <AppGate>{children}</AppGate>
+      <FeedbackProvider>
+        <AppGate>{children}</AppGate>
+      </FeedbackProvider>
     </AuthProvider>
   );
 }

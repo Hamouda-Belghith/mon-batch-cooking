@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { Icon } from "@/components/ui/Icon";
+import { useConfirm } from "@/components/ui/Feedback";
 import { UNITS } from "@/lib/units";
 import { fetchIngredients } from "@/features/dishes/api";
 import { formatDateLong, formatQuantity, type DurationUnit } from "@/lib/date";
@@ -42,14 +44,15 @@ function StatusBanner({ status, scope }: { status: ActionStatus; scope: ActionSt
   if (status.scope !== scope) return null;
   if (status.error) {
     return (
-      <p style={{ color: "var(--danger)", fontWeight: 650, margin: "0.6rem 0 0" }}>
+      <div className="notice notice-error" role="alert">
         {status.error}
-      </p>
+      </div>
     );
   }
   if (status.message) {
     return (
-      <p style={{ color: "var(--accent-dark)", fontWeight: 600, margin: "0.6rem 0 0" }}>
+      <p className="status-ok" role="status">
+        <Icon name="check" size={16} />
         {status.message}
       </p>
     );
@@ -72,29 +75,26 @@ function SourceRow({
   onRemove: (id: string) => void;
 }) {
   return (
-    <div className={`shop-item ${item.isChecked ? "" : "checked"}`}>
-      <input
-        type="checkbox"
-        className="shop-checkbox"
-        checked={item.isChecked}
-        onChange={(e) => onToggle(item.id, e.target.checked)}
-        aria-label={
-          item.isChecked
-            ? `${item.ingredientName} — dans la liste d'achat`
-            : `${item.ingredientName} — pas à acheter`
-        }
-      />
-      <span className="shop-name">{item.ingredientName}</span>
-      <span className="shop-qty">
-        {formatQuantity(item.quantity)} {item.unit}
-      </span>
+    <div className={`shop-item ${item.isChecked ? "" : "shop-item-off"}`}>
+      <label className="shop-item-hit">
+        <input
+          type="checkbox"
+          className="shop-checkbox"
+          checked={item.isChecked}
+          onChange={(e) => onToggle(item.id, e.target.checked)}
+        />
+        <span className="shop-name">{item.ingredientName}</span>
+        <span className="shop-qty">
+          {formatQuantity(item.quantity)} {item.unit}
+        </span>
+      </label>
       <button
         type="button"
-        className="btn btn-ghost btn-icon"
+        className="btn btn-ghost btn-icon shop-remove"
         aria-label={`Retirer ${item.ingredientName}`}
         onClick={() => onRemove(item.id)}
       >
-        ✕
+        <Icon name="close" size={18} />
       </button>
     </div>
   );
@@ -129,7 +129,7 @@ function IngredientSearchField({
           .slice(0, 8);
 
   return (
-    <div className="field autocomplete" style={{ marginBottom: 0, flex: 1, minWidth: "9rem" }}>
+    <div className="field autocomplete add-form-name">
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
@@ -167,6 +167,7 @@ function IngredientSearchField({
 }
 
 export function ShoppingListScreen() {
+  const confirm = useConfirm();
   const defaults = useMemo(() => getDefaultPeriod(), []);
   const [amount, setAmount] = useState(defaults.amount);
   const [unit, setUnit] = useState<DurationUnit>(defaults.unit);
@@ -265,50 +266,65 @@ export function ShoppingListScreen() {
   }
 
   async function handleRemove(itemId: string) {
-    if (!window.confirm("Retirer cet article ?")) return;
+    const item = items?.find((i) => i.id === itemId);
+    const ok = await confirm({
+      title: item ? `Retirer « ${item.ingredientName} » ?` : "Retirer cet article ?",
+      confirmLabel: "Retirer",
+      danger: true,
+    });
+    if (!ok) return;
     await removeItem(itemId);
   }
 
+  const dishesToBuy = dishesItems.filter((i) => i.isChecked).length;
+  const extraToBuy = extraItems.filter((i) => i.isChecked).length;
+
   return (
     <div className="screen">
-      <div className="screen-header">
+      <header className="page-header">
         <div>
-          <h1 style={{ margin: 0 }}>Liste de courses</h1>
+          <h1 className="page-title">Courses</h1>
+          <p className="page-sub">
+            Ce qui est coché part dans « À acheter ». Décoche ce que tu as déjà.
+          </p>
         </div>
-      </div>
+      </header>
 
-      <div className="subtabs">
+      <div className="segmented" role="tablist" aria-label="Origine des articles">
         <button
           type="button"
-          className={`subtab ${activeTab === "week" ? "active" : ""}`}
+          role="tab"
+          aria-selected={activeTab === "week"}
+          className={`segment ${activeTab === "week" ? "active" : ""}`}
           onClick={() => setActiveTab("week")}
         >
           Depuis le planning
+          {dishesItems.length > 0 ? <span className="segment-count">{dishesItems.length}</span> : null}
         </button>
         <button
           type="button"
-          className={`subtab ${activeTab === "extra" ? "active" : ""}`}
+          role="tab"
+          aria-selected={activeTab === "extra"}
+          className={`segment ${activeTab === "extra" ? "active" : ""}`}
           onClick={() => setActiveTab("extra")}
         >
           Courses supplémentaires
+          {extraItems.length > 0 ? <span className="segment-count">{extraItems.length}</span> : null}
         </button>
       </div>
 
-      <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.85rem" }}>
-        Les articles cochés apparaissent automatiquement dans « À acheter ». Décoche ce que tu as
-        déjà.
-      </p>
-
       {activeTab === "week" ? (
         <>
-          <div className="card">
-            <div className="row" style={{ alignItems: "flex-end", flexWrap: "wrap" }}>
-              <div className="field" style={{ marginBottom: 0, width: "5.5rem" }}>
-                <label htmlFor="duration-amount">Pendant</label>
+          <section className="panel">
+            <h2 className="panel-heading">Générer depuis le planning</h2>
+            <div className="generate-row">
+              <div className="inline-field">
+                <label htmlFor="duration-amount">Pour les</label>
                 <input
                   id="duration-amount"
                   type="number"
-                  className="input"
+                  inputMode="numeric"
+                  className="input input-narrow"
                   min={1}
                   step={1}
                   value={amount}
@@ -318,12 +334,10 @@ export function ShoppingListScreen() {
                     applyDuration(next, unit);
                   }}
                 />
-              </div>
-              <div className="field" style={{ marginBottom: 0, minWidth: "9rem", flex: 1 }}>
-                <label htmlFor="duration-unit">Unité</label>
                 <select
                   id="duration-unit"
-                  className="select"
+                  className="select select-auto"
+                  aria-label="Unité de durée"
                   value={unit}
                   onChange={(e) => applyDuration(amount, e.target.value as DurationUnit)}
                 >
@@ -333,53 +347,55 @@ export function ShoppingListScreen() {
                     </option>
                   ))}
                 </select>
+                <span>à venir</span>
               </div>
               <Button disabled={busy} onClick={() => void handleGenerate()}>
-                Générer depuis le planning
+                {busy && status.scope === "dishes" ? "Génération…" : "Générer la liste"}
               </Button>
             </div>
-            <p style={{ margin: "0.6rem 0 0", color: "var(--muted)", fontSize: "0.85rem" }}>
+            <p className="field-hint">
               Du {formatDateLong(periodStart)} au {formatDateLong(periodEnd)}.
+              {dishesItems.length > 0 ? " Remplace la liste générée précédemment." : ""}
             </p>
             <StatusBanner status={status} scope="dishes" />
-          </div>
+          </section>
 
           {items === undefined ? (
             <Spinner />
+          ) : dishesItems.length === 0 ? (
+            <div className="empty-state">
+              <Icon name="list" size={32} />
+              <p className="empty-title">Pas encore de liste</p>
+              <p className="empty-text">
+                Planifie des repas, choisis une durée puis « Générer la liste » : les
+                ingrédients des plats prévus s&apos;additionnent ici.
+              </p>
+            </div>
           ) : (
-            <div className="card stack" style={{ gap: "0.55rem" }}>
-              <div className="row-spread">
-                <p className="section-title">Articles ({dishesItems.length})</p>
+            <section className="list-section">
+              <div className="list-section-head">
+                <h2 className="list-section-title">
+                  {dishesToBuy} sur {dishesItems.length} à acheter
+                </h2>
                 {dishesPeriod ? (
-                  <span style={{ color: "var(--muted)", fontSize: "0.85rem" }}>
+                  <span className="list-section-meta">
                     Du {formatDateLong(dishesPeriod.start)} au {formatDateLong(dishesPeriod.end)}
                   </span>
                 ) : null}
               </div>
-              {dishesItems.length === 0 ? (
-                <p style={{ margin: 0, color: "var(--muted)" }}>
-                  Rien pour l&apos;instant. Planifie des repas puis clique sur « Générer depuis le
-                  planning ».
-                </p>
-              ) : (
-                dishesItems.map((item) => (
+              <div className="shop-list">
+                {dishesItems.map((item) => (
                   <SourceRow key={item.id} item={item} onToggle={handleToggle} onRemove={handleRemove} />
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            </section>
           )}
         </>
       ) : (
         <>
-          <div className="card">
-            <p className="section-title" style={{ marginBottom: "0.55rem" }}>
-              Ajouter un article
-            </p>
-            <form
-              className="row"
-              style={{ alignItems: "flex-end", flexWrap: "wrap" }}
-              onSubmit={(e) => void handleAddExtra(e)}
-            >
+          <section className="panel">
+            <h2 className="panel-heading">Ajouter un article</h2>
+            <form className="add-form" onSubmit={(e) => void handleAddExtra(e)}>
               <IngredientSearchField
                 id="extra-name"
                 label="Article"
@@ -387,11 +403,12 @@ export function ShoppingListScreen() {
                 onChange={setAddName}
                 suggestions={ingredientSuggestions}
               />
-              <div className="field" style={{ marginBottom: 0, width: "5rem" }}>
-                <label htmlFor="extra-quantity">Qté</label>
+              <div className="field add-form-qty">
+                <label htmlFor="extra-quantity">Quantité</label>
                 <input
                   id="extra-quantity"
                   type="number"
+                  inputMode="decimal"
                   className="input"
                   min="0"
                   step="any"
@@ -399,7 +416,7 @@ export function ShoppingListScreen() {
                   onChange={(e) => setAddQuantity(e.target.value === "" ? 0 : Number(e.target.value))}
                 />
               </div>
-              <div className="field" style={{ marginBottom: 0, width: "8rem" }}>
+              <div className="field add-form-unit">
                 <label htmlFor="extra-unit">Unité</label>
                 <select
                   id="extra-unit"
@@ -414,30 +431,37 @@ export function ShoppingListScreen() {
                   ))}
                 </select>
               </div>
-              <Button type="submit" disabled={busy || !addName.trim()}>
-                + Ajouter
+              <Button type="submit" className="add-form-submit" disabled={busy || !addName.trim()}>
+                <Icon name="plus" size={18} />
+                Ajouter
               </Button>
             </form>
             <StatusBanner status={status} scope="add" />
-          </div>
+          </section>
 
           {items === undefined ? (
             <Spinner />
-          ) : (
-            <div className="card stack" style={{ gap: "0.55rem" }}>
-              <div className="row-spread">
-                <p className="section-title">Articles ({extraItems.length})</p>
-              </div>
-              {extraItems.length === 0 ? (
-                <p style={{ margin: 0, color: "var(--muted)" }}>
-                  Rien pour l&apos;instant. Ajoute un article avec le formulaire ci-dessus.
-                </p>
-              ) : (
-                extraItems.map((item) => (
-                  <SourceRow key={item.id} item={item} onToggle={handleToggle} onRemove={handleRemove} />
-                ))
-              )}
+          ) : extraItems.length === 0 ? (
+            <div className="empty-state">
+              <p className="empty-title">Rien en plus pour l&apos;instant</p>
+              <p className="empty-text">
+                Ajoute ici ce qui ne vient pas d&apos;un plat : produits ménagers, petit-déjeuner,
+                boissons…
+              </p>
             </div>
+          ) : (
+            <section className="list-section">
+              <div className="list-section-head">
+                <h2 className="list-section-title">
+                  {extraToBuy} sur {extraItems.length} à acheter
+                </h2>
+              </div>
+              <div className="shop-list">
+                {extraItems.map((item) => (
+                  <SourceRow key={item.id} item={item} onToggle={handleToggle} onRemove={handleRemove} />
+                ))}
+              </div>
+            </section>
           )}
         </>
       )}

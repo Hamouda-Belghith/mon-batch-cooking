@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { getDb } from "@/lib/db/dexie";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
+import { Icon } from "@/components/ui/Icon";
+import { useConfirm, useToast } from "@/components/ui/Feedback";
 import { formatQuantity } from "@/lib/date";
 import {
   useShoppingList,
@@ -26,6 +29,7 @@ interface PurchaseLine {
   isBought: boolean;
 }
 
+/** Toute la ligne est cliquable : en magasin, on coche d'un pouce. */
 function PurchaseRow({
   line,
   onToggleBought,
@@ -36,29 +40,26 @@ function PurchaseRow({
   onRemove: (line: PurchaseLine) => void;
 }) {
   return (
-    <div className={`shop-item ${line.isBought ? "checked" : ""}`}>
-      <input
-        type="checkbox"
-        className="shop-checkbox"
-        checked={line.isBought}
-        onChange={(e) => onToggleBought(line, e.target.checked)}
-        aria-label={
-          line.isBought
-            ? `${line.ingredientName} — dans le panier`
-            : `${line.ingredientName} — à acheter`
-        }
-      />
-      <span className="shop-name">{line.ingredientName}</span>
-      <span className="shop-qty">
-        {formatQuantity(line.quantity)} {line.unit}
-      </span>
+    <div className={`shop-item shop-item-lg ${line.isBought ? "shop-item-done" : ""}`}>
+      <label className="shop-item-hit">
+        <input
+          type="checkbox"
+          className="shop-checkbox"
+          checked={line.isBought}
+          onChange={(e) => onToggleBought(line, e.target.checked)}
+        />
+        <span className="shop-name">{line.ingredientName}</span>
+        <span className="shop-qty">
+          {formatQuantity(line.quantity)} {line.unit}
+        </span>
+      </label>
       <button
         type="button"
-        className="btn btn-ghost btn-icon"
+        className="btn btn-ghost btn-icon shop-remove"
         aria-label={`Retirer ${line.ingredientName} de la liste`}
         onClick={() => onRemove(line)}
       >
-        ✕
+        <Icon name="close" size={18} />
       </button>
     </div>
   );
@@ -73,12 +74,12 @@ function PurchaseRow({
  * (onglet de navigation « À acheter »).
  */
 export function FinalListSection() {
+  const confirm = useConfirm();
+  const toast = useToast();
   const items = useShoppingList();
   const pendingCount = useLiveQuery(() => getDb().pendingMutations.count(), []);
 
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const lines = useMemo(() => {
     const byKey = new Map<string, PurchaseLine>();
@@ -113,28 +114,31 @@ export function FinalListSection() {
   }
 
   async function handleRemove(line: PurchaseLine) {
-    if (!window.confirm(`Retirer « ${line.ingredientName} » de la liste d'achat ?`)) return;
+    const ok = await confirm({
+      title: `Retirer « ${line.ingredientName} » ?`,
+      message: "L'article reste dans l'écran Courses, simplement décoché.",
+      confirmLabel: "Retirer",
+    });
+    if (!ok) return;
     for (const id of line.itemIds) {
       await toggleItemChecked(id, false);
     }
   }
 
   async function handleClear() {
-    if (
-      !window.confirm(
-        "Vider la liste « À acheter » ? Les articles restent dans leurs onglets, simplement décochés."
-      )
-    ) {
-      return;
-    }
+    const ok = await confirm({
+      title: "Vider la liste « À acheter » ?",
+      message: "Les articles restent dans l'écran Courses, simplement décochés.",
+      confirmLabel: "Vider la liste",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
-    setMessage(null);
-    setError(null);
     try {
       await clearPurchaseList();
-      setMessage("Liste vidée.");
+      toast("Liste vidée.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de vider la liste");
+      toast(err instanceof Error ? err.message : "Impossible de vider la liste", "error");
     } finally {
       setBusy(false);
     }
@@ -142,57 +146,73 @@ export function FinalListSection() {
 
   if (items === undefined) return <Spinner />;
 
+  const progress = lines.length === 0 ? 0 : inCart.length / lines.length;
+
   return (
     <>
       {pendingCount && pendingCount > 0 ? (
-        <p className="tag tag-warn" style={{ alignSelf: "flex-start" }}>
-          {pendingCount} modification{pendingCount > 1 ? "s" : ""} en attente de synchro
-        </p>
+        <div className="notice notice-warn">
+          {pendingCount} modification{pendingCount > 1 ? "s" : ""} hors-ligne, envoyée
+          {pendingCount > 1 ? "s" : ""} au retour du réseau.
+        </div>
       ) : null}
 
-      <div className="card stack" style={{ gap: "0.55rem" }}>
-        {lines.length > 0 ? (
-          <div className="row" style={{ justifyContent: "flex-end" }}>
-            <Button size="sm" variant="danger" disabled={busy} onClick={() => void handleClear()}>
-              Vider
-            </Button>
-          </div>
-        ) : null}
-        {error ? (
-          <p style={{ color: "var(--danger)", fontWeight: 650, margin: 0 }}>{error}</p>
-        ) : null}
-        {message && !error ? (
-          <p style={{ color: "var(--accent-dark)", fontWeight: 600, margin: 0 }}>{message}</p>
-        ) : null}
-        {lines.length === 0 ? (
-          <p style={{ margin: 0, color: "var(--muted)" }}>
-            Vide pour l&apos;instant. Coche des articles dans les onglets « Depuis le planning » et
-            « Courses supplémentaires » de l&apos;écran Courses.
+      {lines.length === 0 ? (
+        <div className="empty-state">
+          <Icon name="basket" size={32} />
+          <p className="empty-title">La liste est vide</p>
+          <p className="empty-text">
+            Coche des articles dans l&apos;écran Courses : ils apparaissent ici
+            automatiquement.
           </p>
-        ) : (
-          <div className="stack">
-            <div className="stack" style={{ gap: "0.45rem" }}>
-              <div className="row-spread">
-                <p className="section-title">À acheter ({toBuy.length})</p>
-                {toBuy.length === 0 ? <span className="tag">Tout est dans le panier</span> : null}
-              </div>
-              {toBuy.length === 0 ? (
-                <p style={{ margin: 0, color: "var(--muted)" }}>Plus rien à acheter.</p>
-              ) : (
-                toBuy.map((line) => (
-                  <PurchaseRow
-                    key={line.key}
-                    line={line}
-                    onToggleBought={handleToggleBought}
-                    onRemove={handleRemove}
-                  />
-                ))
-              )}
+          <Link href="/courses" className="btn btn-primary">
+            Aller aux courses
+          </Link>
+        </div>
+      ) : (
+        <>
+          <div className="cart-progress">
+            <div className="cart-progress-text">
+              <strong>
+                {toBuy.length === 0
+                  ? "Tout est dans le panier"
+                  : `${toBuy.length} article${toBuy.length > 1 ? "s" : ""} à prendre`}
+              </strong>
+              <span>
+                {inCart.length} sur {lines.length} dans le panier
+              </span>
             </div>
+            <div
+              className="progress"
+              role="progressbar"
+              aria-label="Articles dans le panier"
+              aria-valuemin={0}
+              aria-valuemax={lines.length}
+              aria-valuenow={inCart.length}
+            >
+              <span style={{ width: `${progress * 100}%` }} />
+            </div>
+          </div>
 
-            {inCart.length > 0 ? (
-              <div className="stack" style={{ gap: "0.45rem", marginTop: "0.5rem" }}>
-                <p className="section-title">Dans le panier ({inCart.length})</p>
+          {toBuy.length > 0 ? (
+            <div className="shop-list">
+              {toBuy.map((line) => (
+                <PurchaseRow
+                  key={line.key}
+                  line={line}
+                  onToggleBought={handleToggleBought}
+                  onRemove={handleRemove}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {inCart.length > 0 ? (
+            <section className="list-section">
+              <h2 className="list-section-title list-section-title-muted">
+                Dans le panier ({inCart.length})
+              </h2>
+              <div className="shop-list">
                 {inCart.map((line) => (
                   <PurchaseRow
                     key={line.key}
@@ -202,10 +222,21 @@ export function FinalListSection() {
                   />
                 ))}
               </div>
-            ) : null}
+            </section>
+          ) : null}
+
+          <div className="row" style={{ justifyContent: "center" }}>
+            <Button
+              variant="ghost"
+              className="btn-text-danger"
+              disabled={busy}
+              onClick={() => void handleClear()}
+            >
+              Vider la liste
+            </Button>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </>
   );
 }

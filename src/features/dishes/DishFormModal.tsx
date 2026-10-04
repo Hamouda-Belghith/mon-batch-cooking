@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
+import { Icon } from "@/components/ui/Icon";
 import { Field, TextareaField } from "@/components/ui/Field";
 import { fetchIngredients, saveDish } from "./api";
 import type { Dish, DishIngredient } from "./types";
@@ -43,6 +44,7 @@ export function DishFormModal({
   initialName = "",
   onClose,
   onSaved,
+  onDelete,
 }: {
   /** Plat à modifier ; `null` = nouveau plat. */
   dish: Dish | null;
@@ -50,6 +52,8 @@ export function DishFormModal({
   initialName?: string;
   onClose: () => void;
   onSaved: (dishId: string) => void | Promise<void>;
+  /** Affiche « Supprimer le plat » (modification depuis l'écran Plats). */
+  onDelete?: () => void;
 }) {
   const [name, setName] = useState(dish?.name ?? initialName);
   const [description, setDescription] = useState(dish?.description ?? "");
@@ -73,6 +77,7 @@ export function DishFormModal({
   // l'enregistrement échoue à mi-chemin puis est retenté, on réécrit le
   // même plat au lieu d'en créer un second.
   const draftId = useRef<string>(dish?.id ?? crypto.randomUUID());
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     void fetchIngredients().then(setIngredientSuggestions);
@@ -91,6 +96,7 @@ export function DishFormModal({
   function handlePhotoRemove() {
     setPhotoPreview(null);
     setPhotoChanged(true);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -126,8 +132,8 @@ export function DishFormModal({
   }
 
   return (
-    <Modal title={dish ? "Modifier le plat" : "Nouveau plat"} onClose={onClose} wide>
-      <form onSubmit={handleSave} className="stack">
+    <Modal title={dish ? "Modifier le plat" : "Nouveau plat"} onClose={onClose} size="wide">
+      <form onSubmit={handleSave} className="dish-form">
         <Field
           label="Nom du plat"
           name="dish-name"
@@ -144,147 +150,134 @@ export function DishFormModal({
           placeholder="Ex : la recette de grand-mère, 20 min de cuisson…"
         />
 
-        <div className="row" style={{ alignItems: "flex-start" }}>
-          <div style={{ flex: 1, minWidth: "8rem" }}>
-            <Field
-              label="Calories (kcal, optionnel)"
-              name="dish-calories"
-              type="number"
-              inputMode="numeric"
-              min="0"
-              step="1"
-              value={calories}
-              onChange={(e) => setCalories(e.target.value)}
-              placeholder="Ex : 650"
-              hint="Pour une portion."
-            />
-          </div>
-          <div style={{ flex: 1, minWidth: "8rem" }}>
-            <Field
-              label="Protéines (g, optionnel)"
-              name="dish-protein"
-              type="number"
-              inputMode="decimal"
-              min="0"
-              step="0.1"
-              value={proteinG}
-              onChange={(e) => setProteinG(e.target.value)}
-              placeholder="Ex : 35"
-              hint="Pour une portion."
-            />
-          </div>
+        <div className="form-grid-2">
+          <Field
+            label="Calories par portion (kcal)"
+            name="dish-calories"
+            type="number"
+            inputMode="numeric"
+            min="0"
+            step="1"
+            value={calories}
+            onChange={(e) => setCalories(e.target.value)}
+            placeholder="Optionnel"
+          />
+          <Field
+            label="Protéines par portion (g)"
+            name="dish-protein"
+            type="number"
+            inputMode="decimal"
+            min="0"
+            step="0.1"
+            value={proteinG}
+            onChange={(e) => setProteinG(e.target.value)}
+            placeholder="Optionnel"
+          />
         </div>
 
-        <div>
-          <span
-            style={{
-              display: "block",
-              fontWeight: 650,
-              fontSize: "0.9rem",
-              marginBottom: "0.4rem",
-            }}
-          >
-            Photo (optionnel)
-          </span>
+        <div className="field">
+          <span className="field-label">Photo (optionnel)</span>
           <div className="dish-photo-field">
             {photoPreview ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photoPreview} alt="" className="dish-photo-preview" />
             ) : (
               <div className="dish-photo-placeholder" aria-hidden="true">
-                📷
+                <Icon name="camera" size={24} />
               </div>
             )}
-            <div className="stack" style={{ gap: "0.4rem" }}>
-              <input
-                type="file"
-                accept="image/*"
-                aria-label="Choisir une photo du plat"
-                onChange={(e) => handlePhotoSelect(e.target.files?.[0])}
-              />
+            <div className="row">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {photoPreview ? "Changer la photo" : "Ajouter une photo"}
+              </Button>
               {photoPreview ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={handlePhotoRemove}
-                >
-                  Retirer la photo
+                <Button size="sm" variant="ghost" onClick={handlePhotoRemove}>
+                  Retirer
                 </Button>
               ) : null}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="visually-hidden"
+                tabIndex={-1}
+                aria-hidden="true"
+                onChange={(e) => handlePhotoSelect(e.target.files?.[0])}
+              />
             </div>
           </div>
         </div>
 
-        <div className="row-spread">
-          <h3 style={{ fontSize: "1rem", margin: 0 }}>Ingrédients</h3>
+        <fieldset className="ingredients">
+          <legend className="field-label">Ingrédients</legend>
+          <div className="ingredient-head" aria-hidden="true">
+            <span>Nom</span>
+            <span>Qté</span>
+            <span>Unité</span>
+            <span />
+          </div>
+          {ingredients.map((ing, idx) => (
+            <div key={idx} className="ingredient-row">
+              <input
+                list="ingredient-names"
+                className="input"
+                placeholder="Ex : Tomates"
+                aria-label={`Ingrédient ${idx + 1}, nom`}
+                value={ing.ingredientName}
+                onChange={(e) => updateIngredient(idx, { ingredientName: e.target.value })}
+              />
+              <input
+                className="input"
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                aria-label={`Ingrédient ${idx + 1}, quantité`}
+                value={Number.isNaN(ing.quantity) ? "" : String(ing.quantity)}
+                onChange={(e) =>
+                  updateIngredient(idx, {
+                    quantity: e.target.value === "" ? 0 : Number(e.target.value),
+                  })
+                }
+              />
+              <select
+                className="select"
+                aria-label={`Ingrédient ${idx + 1}, unité`}
+                value={ing.unit}
+                onChange={(e) => updateIngredient(idx, { unit: e.target.value })}
+              >
+                {UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn-ghost btn-icon"
+                aria-label={`Retirer l'ingrédient ${ing.ingredientName || idx + 1}`}
+                onClick={() =>
+                  setIngredients((prev) => prev.filter((_, i) => i !== idx))
+                }
+              >
+                <Icon name="close" size={18} />
+              </button>
+            </div>
+          ))}
           <Button
             size="sm"
             variant="ghost"
-            onClick={() =>
-              setIngredients((prev) => [...prev, EmptyIngredientRow()])
-            }
+            className="add-ingredient"
+            onClick={() => setIngredients((prev) => [...prev, EmptyIngredientRow()])}
           >
-            + Ajouter un ingrédient
+            <Icon name="plus" size={16} />
+            Ajouter un ingrédient
           </Button>
-        </div>
-
-        {ingredients.map((ing, idx) => (
-          <div
-            key={idx}
-            className="row"
-            style={{
-              border: "2px dashed var(--ink)",
-              borderRadius: "var(--radius)",
-              padding: "0.5rem",
-            }}
-          >
-            <input
-              list="ingredient-names"
-              className="input"
-              style={{ flex: 1, minWidth: "8rem" }}
-              placeholder="Nom de l'ingrédient"
-              value={ing.ingredientName}
-              onChange={(e) => updateIngredient(idx, { ingredientName: e.target.value })}
-            />
-            <input
-              className="input"
-              type="number"
-              min="0"
-              step="any"
-              style={{ width: "5rem" }}
-              placeholder="Qté"
-              value={Number.isNaN(ing.quantity) ? "" : String(ing.quantity)}
-              onChange={(e) =>
-                updateIngredient(idx, {
-                  quantity: e.target.value === "" ? 0 : Number(e.target.value),
-                })
-              }
-            />
-            <select
-              className="select"
-              style={{ width: "8rem" }}
-              value={ing.unit}
-              onChange={(e) => updateIngredient(idx, { unit: e.target.value })}
-            >
-              {UNITS.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="btn btn-ghost btn-icon"
-              aria-label="Retirer l'ingrédient"
-              onClick={() =>
-                setIngredients((prev) => prev.filter((_, i) => i !== idx))
-              }
-            >
-              ✕
-            </button>
-          </div>
-        ))}
+        </fieldset>
         <datalist id="ingredient-names">
           {ingredientSuggestions.map((suggestion) => (
             <option key={suggestion} value={suggestion} />
@@ -292,17 +285,22 @@ export function DishFormModal({
         </datalist>
 
         {formError ? (
-          <p role="alert" style={{ margin: 0, color: "var(--danger)", fontWeight: 650 }}>
+          <div className="notice notice-error" role="alert">
             {formError}
-          </p>
+          </div>
         ) : null}
 
-        <div className="row" style={{ justifyContent: "flex-end" }}>
-          <Button variant="ghost" onClick={onClose}>
+        <div className="modal-actions modal-actions-sticky">
+          {onDelete ? (
+            <Button variant="ghost" className="btn-text-danger push-left" onClick={onDelete}>
+              Supprimer le plat
+            </Button>
+          ) : null}
+          <Button variant="ghost" className="cancel-action" onClick={onClose}>
             Annuler
           </Button>
           <Button type="submit" disabled={saving || !name.trim()}>
-            {saving ? "…" : "Enregistrer"}
+            {saving ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </div>
       </form>

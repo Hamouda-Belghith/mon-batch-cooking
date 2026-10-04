@@ -6,6 +6,38 @@ haut du fichier (ordre antéchronologique).
 
 ---
 
+## 2026-10-04 — Refonte UX/UI : confirmations, notifications et navigation mobile
+
+**Contexte** : demande de rendre l'app plus simple, plus professionnelle
+et plus facile à utiliser. Problèmes relevés : quatre panneaux
+d'options au-dessus de la grille du Planning (grille sous la ligne de
+flottaison, boutons « Vider » toujours visibles) ; grille à 7 colonnes
+qui défile horizontalement sur téléphone ; `window.confirm` partout ;
+messages de statut qui décalent la page ; cases à cocher minuscules
+pour la liste de courses.
+
+**Décision** :
+- `components/ui/Feedback.tsx` : `useConfirm()` (promesse, modale
+  stylée) et `useToast()` (notifications éphémères, `aria-live`)
+  fournis par `FeedbackProvider` dans `providers.tsx`.
+- `Modal` gère une pile : seule la modale du dessus réagit à Échap, ce
+  qui permet une confirmation par-dessus un formulaire sans le fermer.
+- Navigation : barre d'onglets en bas d'écran sous 720 px.
+- Planning : options derrière une barre d'outils (panneaux), agenda
+  vertical sur téléphone obtenu en CSS à partir du même balisage.
+- Aucune nouvelle dépendance (icônes en SVG maison, police via
+  `next/font`).
+
+**Alternatives écartées** : librairie de composants (Radix, shadcn…) ou
+d'icônes — contraire à la règle « pas de dépendance sans nécessité » ;
+une vue mobile séparée du Planning — dupliquerait la logique de cases.
+
+**Pourquoi** : usage réel surtout sur téléphone (planifier, puis faire
+les courses d'une main) ; les choix restent réversibles et ne touchent
+ni aux données ni à la logique métier.
+
+---
+
 ## 2026-09-29 — « À acheter » calculée depuis les articles cochés ; semaines enregistrées
 
 **Contexte** : demande de ne plus avoir à cliquer sur « Ajouter à la

@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Spinner } from "@/components/ui/Spinner";
+import { Icon } from "@/components/ui/Icon";
+import { useConfirm, useToast } from "@/components/ui/Feedback";
 import {
   addDays,
   formatQuantity,
   parseISODate,
   startOfWeek,
   toISODate,
-  formatDateShort,
   formatDateLong,
   formatWeekRange,
 } from "@/lib/date";
@@ -46,6 +47,10 @@ import {
 
 const WEEK_DAYS = 7;
 const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const DAY_LABELS_LONG = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+/** Panneau d'options ouvert depuis la barre d'outils du planning. */
+type Panel = "repeat" | "saved" | "display" | "clear";
 
 /**
  * Préférence d'affichage mémorisée sur cet appareil. Lue après le
@@ -92,28 +97,42 @@ function formatTotal(
   return `${formatQuantity(rounded)} ${unit}${incomplete ? "*" : ""}`;
 }
 
+function formatInterval(weeks: number): string {
+  return weeks === 1 ? "chaque semaine" : `toutes les ${weeks} semaines`;
+}
+
 function DisplayToggle({
   label,
+  description,
   checked,
   onChange,
 }: {
   label: string;
+  description?: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <label className={`pill-checkbox ${checked ? "active" : ""}`}>
+    <label className="switch-row">
+      <span>
+        <span className="switch-label">{label}</span>
+        {description ? <span className="switch-desc">{description}</span> : null}
+      </span>
       <input
         type="checkbox"
+        role="switch"
+        className="switch"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      {label}
     </label>
   );
 }
 
 export function PlanningScreen() {
+  const confirm = useConfirm();
+  const toast = useToast();
+
   const [weekStart, setWeekStart] = useState<Date>(() =>
     startOfWeek(new Date())
   );
@@ -122,9 +141,10 @@ export function PlanningScreen() {
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [repeat, setRepeat] = useState<RepeatConfig | null>(null);
   const [frequencyInput, setFrequencyInput] = useState(1);
-  const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const [showBreakfast, setShowBreakfast] = usePersistedFlag("planning-show-breakfast", true);
   const [showSnack, setShowSnack] = usePersistedFlag("planning-show-snack", false);
@@ -150,13 +170,18 @@ export function PlanningScreen() {
     endISO: string;
   } | null>(null);
 
-  /** Modale des semaines enregistrées : enregistrer la semaine affichée, ou en choisir une pour la remplir. */
-  const [savedWeeksModal, setSavedWeeksModal] = useState<"save" | "use" | null>(null);
+  /** Semaines enregistrées, chargées à l'ouverture de leur panneau. */
   const [savedWeeks, setSavedWeeks] = useState<SavedWeek[] | null>(null);
   const [saveName, setSaveName] = useState("");
 
   const weekStartISO = toISODate(weekStart);
   const weekEndISO = toISODate(addDays(weekStart, WEEK_DAYS - 1));
+  const todayISO = toISODate(new Date());
+  const isCurrentWeek = weekStartISO === toISODate(startOfWeek(new Date()));
+
+  function reportError(err: unknown, fallback: string) {
+    toast(err instanceof Error ? err.message : fallback, "error");
+  }
 
   async function loadMeals() {
     await ensurePatternApplied(weekStartISO, weekEndISO);
@@ -193,8 +218,9 @@ export function PlanningScreen() {
   }
 
   useEffect(() => {
+    setLoadError(null);
     void loadMeals().catch((err) => {
-      setError(err instanceof Error ? err.message : "Chargement impossible");
+      setLoadError(err instanceof Error ? err.message : "Chargement impossible");
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekStartISO]);
@@ -216,42 +242,40 @@ export function PlanningScreen() {
     setWeekStart(startOfWeek(parseISODate(dateISO)));
   }
 
+  function openDatePicker() {
+    const input = dateInputRef.current;
+    if (!input) return;
+    try {
+      input.showPicker();
+    } catch {
+      input.focus();
+    }
+  }
+
   async function handleClearWeek() {
-    const ok = window.confirm(
-      `Vider tous les repas de la semaine du ${formatDateLong(weekStartISO)} ? ` +
-        "Cette action est irréversible."
-    );
-    if (!ok) return;
+    setPanel(null);
     setBusy(true);
-    setError(null);
-    setHint(null);
     try {
       await clearWeek(weekStartISO, weekEndISO);
       await loadMeals();
-      setHint("Semaine vidée.");
+      toast("Semaine vidée.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de vider la semaine");
+      reportError(err, "Impossible de vider la semaine");
     } finally {
       setBusy(false);
     }
   }
 
   async function handleClearAll() {
-    const ok = window.confirm(
-      "Vider tout le planning (toutes les semaines, passées et futures) et désactiver " +
-        "la répétition ? Cette action est irréversible."
-    );
-    if (!ok) return;
+    setPanel(null);
     setBusy(true);
-    setError(null);
-    setHint(null);
     try {
       const config = await clearAllWeeks();
       setRepeat(config);
       await loadMeals();
-      setHint("Planning entièrement vidé.");
+      toast("Planning entièrement vidé.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de vider le planning");
+      reportError(err, "Impossible de vider le planning");
     } finally {
       setBusy(false);
     }
@@ -259,89 +283,90 @@ export function PlanningScreen() {
 
   async function applyRepeat(interval: RepeatInterval | null, overwrite = false) {
     setBusy(true);
-    setError(null);
-    setHint(null);
     try {
       const config = await setRepeatInterval(interval, weekStartISO, overwrite);
       setRepeat(config);
       await loadMeals();
-      if (interval === null) {
-        setHint("Répétition désactivée.");
-      } else {
-        setHint(
-          interval === 1
-            ? "Cette semaine se répète chaque semaine."
-            : `Cette semaine se répète toutes les ${interval} semaines.`
-        );
-      }
+      toast(
+        interval === null
+          ? "Répétition désactivée."
+          : `Cette semaine se répète ${formatInterval(interval)}.`
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Répétition impossible");
+      reportError(err, "Répétition impossible");
     } finally {
       setBusy(false);
     }
   }
 
   async function handleDisableRepeat() {
+    setPanel(null);
     await applyRepeat(null);
   }
 
   async function handleApplyFrequency() {
     const interval = Math.max(1, Math.floor(frequencyInput) || 1);
+    setPanel(null);
 
     // Recliquer sur la fréquence déjà active = remplacer le motif par la semaine affichée.
     if (repeat?.active && repeat.intervalWeeks === interval) {
-      const ok = window.confirm(
-        "Remplacer le modèle répété par la semaine affichée ?"
-      );
+      const ok = await confirm({
+        title: "Remplacer le modèle répété ?",
+        message: `Les repas de la semaine du ${formatWeekRange(weekStartISO, weekEndISO)} deviendront le nouveau modèle.`,
+        confirmLabel: "Remplacer le modèle",
+      });
       if (!ok) return;
     }
 
     setBusy(true);
-    setError(null);
-    setHint(null);
     try {
       const conflicts = await findRepeatConflicts(weekStartISO, interval);
       if (conflicts.length > 0) {
-        const preview = conflicts
-          .slice(0, 3)
-          .map((c) => `${formatDateLong(c.date)} (${MEAL_SLOT_LABELS[c.mealSlot]} — ${c.dishName})`)
-          .join(", ");
-        const more = conflicts.length > 3 ? `, et ${conflicts.length - 3} autre(s)` : "";
-        const ok = window.confirm(
-          `${conflicts.length} repas déjà planifié(s) ne correspond(ent) pas à cette fréquence : ${preview}${more}.\n\n` +
-            "Choisis une autre fréquence pour les garder, ou continue pour les remplacer par le motif répété."
-        );
-        if (!ok) {
-          setBusy(false);
-          return;
-        }
+        setBusy(false);
+        const ok = await confirm({
+          title: `${conflicts.length} repas déjà planifié${conflicts.length > 1 ? "s" : ""} en conflit`,
+          message: (
+            <>
+              <p>Ces repas ne correspondent pas à cette fréquence :</p>
+              <ul className="confirm-list">
+                {conflicts.slice(0, 4).map((c) => (
+                  <li key={`${c.date}-${c.mealSlot}`}>
+                    {formatDateLong(c.date)}, {MEAL_SLOT_LABELS[c.mealSlot].toLowerCase()} :{" "}
+                    {c.dishName}
+                  </li>
+                ))}
+                {conflicts.length > 4 ? <li>et {conflicts.length - 4} autre(s)</li> : null}
+              </ul>
+              <p>Choisis une autre fréquence pour les garder, ou remplace-les par le modèle.</p>
+            </>
+          ),
+          confirmLabel: "Remplacer ces repas",
+          cancelLabel: "Garder mes repas",
+          danger: true,
+        });
+        if (!ok) return;
+        setBusy(true);
       }
       const config = await setRepeatInterval(interval, weekStartISO, conflicts.length > 0);
       setRepeat(config);
       await loadMeals();
-      setHint(
-        interval === 1
-          ? "Cette semaine se répète chaque semaine."
-          : `Cette semaine se répète toutes les ${interval} semaines.`
-      );
+      toast(`Cette semaine se répète ${formatInterval(interval)}.`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Répétition impossible");
+      reportError(err, "Répétition impossible");
     } finally {
       setBusy(false);
     }
   }
 
-  async function openSavedWeeks(mode: "save" | "use") {
-    setError(null);
-    setHint(null);
+  async function openSavedWeeks() {
     setSavedWeeks(null);
     setSaveName(`Semaine du ${formatWeekRange(weekStartISO, weekEndISO)}`);
-    setSavedWeeksModal(mode);
+    setPanel("saved");
     try {
       setSavedWeeks(await fetchSavedWeeks());
     } catch (err) {
-      setSavedWeeksModal(null);
-      setError(err instanceof Error ? err.message : "Chargement impossible");
+      setPanel(null);
+      reportError(err, "Chargement impossible");
     }
   }
 
@@ -349,39 +374,42 @@ export function PlanningScreen() {
     e.preventDefault();
     const name = saveName.trim();
     if (!name) return;
-    if (
-      savedWeeks?.some((w) => w.name === name) &&
-      !window.confirm(`Une semaine « ${name} » existe déjà. La remplacer ?`)
-    ) {
-      return;
+    if (savedWeeks?.some((w) => w.name === name)) {
+      const ok = await confirm({
+        title: "Remplacer la semaine enregistrée ?",
+        message: `Une semaine « ${name} » existe déjà.`,
+        confirmLabel: "Remplacer",
+      });
+      if (!ok) return;
     }
     setBusy(true);
     try {
       const { count } = await saveWeek(name, weekStartISO);
-      setSavedWeeksModal(null);
-      setHint(`Semaine enregistrée sous « ${name} » (${count} repas).`);
+      setPanel(null);
+      toast(`Semaine enregistrée sous « ${name} » (${count} repas).`);
     } catch (err) {
-      setSavedWeeksModal(null);
-      setError(err instanceof Error ? err.message : "Enregistrement impossible");
+      setPanel(null);
+      reportError(err, "Enregistrement impossible");
     } finally {
       setBusy(false);
     }
   }
 
   async function handleApplySavedWeek(week: SavedWeek) {
-    const ok = window.confirm(
-      `Remplacer tous les repas de la semaine du ${formatWeekRange(weekStartISO, weekEndISO)} ` +
-        `par « ${week.name} » ?`
-    );
+    const ok = await confirm({
+      title: `Remplir avec « ${week.name} » ?`,
+      message: `Tous les repas de la semaine du ${formatWeekRange(weekStartISO, weekEndISO)} seront remplacés.`,
+      confirmLabel: "Remplir la semaine",
+    });
     if (!ok) return;
+    setPanel(null);
     setBusy(true);
-    setSavedWeeksModal(null);
     try {
       await applySavedWeek(week, weekStartISO);
       await loadMeals();
-      setHint(`Semaine remplie avec « ${week.name} ».`);
+      toast(`Semaine remplie avec « ${week.name} ».`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de remplir la semaine");
+      reportError(err, "Impossible de remplir la semaine");
       await loadMeals().catch(() => undefined);
     } finally {
       setBusy(false);
@@ -389,14 +417,14 @@ export function PlanningScreen() {
   }
 
   async function handleDeleteSavedWeek(week: SavedWeek) {
-    if (!window.confirm(`Supprimer la semaine enregistrée « ${week.name} » ?`)) return;
     setBusy(true);
     try {
       await deleteSavedWeek(week.id);
       setSavedWeeks((prev) => prev?.filter((w) => w.id !== week.id) ?? null);
+      toast(`« ${week.name} » supprimée.`);
     } catch (err) {
-      setSavedWeeksModal(null);
-      setError(err instanceof Error ? err.message : "Suppression impossible");
+      setPanel(null);
+      reportError(err, "Suppression impossible");
     } finally {
       setBusy(false);
     }
@@ -447,12 +475,11 @@ export function PlanningScreen() {
     special: SpecialMeal | null = null
   ) {
     setBusy(true);
-    setError(null);
     try {
       await setMealWithScope(date, mealSlot, dishId, scope, special);
       await loadMeals();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Action impossible");
+      reportError(err, "Action impossible");
     } finally {
       setBusy(false);
     }
@@ -493,199 +520,133 @@ export function PlanningScreen() {
   );
   const totalsCount = Number(showCalories) + Number(showProtein);
 
+  const showNextWeekBanner =
+    nextWeekEmpty !== null && weekStartISO !== nextWeekEmpty.startISO;
+
   return (
     <div className="screen">
-      <div className="screen-header">
-        <div>
-          <h1 style={{ margin: 0 }}>Planning</h1>
+      {showNextWeekBanner && nextWeekEmpty ? (
+        <div className="notice notice-warn">
+          <span>
+            Rien n&apos;est prévu la semaine prochaine, du{" "}
+            {formatWeekRange(nextWeekEmpty.startISO, nextWeekEmpty.endISO)}.
+          </span>
           <button
             type="button"
-            className="screen-kicker screen-kicker-button"
-            onClick={currentWeek}
-            title="Revenir à la semaine d'aujourd'hui"
+            className="notice-action"
+            onClick={() => jumpToDate(nextWeekEmpty.startISO)}
           >
-            Semaine du {formatWeekRange(weekStartISO, weekEndISO)}
+            La planifier
           </button>
         </div>
-      </div>
-
-      {nextWeekEmpty ? (
-        <button
-          type="button"
-          className="week-warning-banner"
-          onClick={() => jumpToDate(nextWeekEmpty.startISO)}
-        >
-          <span aria-hidden="true">⚠️</span>
-          La semaine prochaine (du {formatWeekRange(nextWeekEmpty.startISO, nextWeekEmpty.endISO)}
-          ) n&apos;a encore aucun repas prévu.
-        </button>
       ) : null}
 
-      <div className="card planning-toolbar">
-        <div className="repeat-panel">
-          <span className="repeat-panel-label">Répéter</span>
-          <div className="repeat-frequency-row">
+      <header className="week-header">
+        <div className="week-title-row">
+          <h1 className="week-title" aria-live="polite">
+            {formatWeekRange(weekStartISO, weekEndISO)}
+          </h1>
+          <button
+            type="button"
+            className="btn btn-icon week-nav"
+            onClick={previousWeek}
+            disabled={busy}
+            aria-label="Semaine précédente"
+          >
+            <Icon name="chevronLeft" />
+          </button>
+          <button
+            type="button"
+            className="btn btn-icon week-nav"
+            onClick={nextWeek}
+            disabled={busy}
+            aria-label="Semaine suivante"
+          >
+            <Icon name="chevronRight" />
+          </button>
+        </div>
+        <div className="week-meta">
+          {isCurrentWeek ? (
+            <span className="chip chip-today">Cette semaine</span>
+          ) : (
+            <button type="button" className="chip chip-button" onClick={currentWeek}>
+              Revenir à cette semaine
+            </button>
+          )}
+          <button type="button" className="chip chip-button" onClick={openDatePicker}>
+            <Icon name="calendar" size={16} />
+            Aller à une date
+          </button>
+          <input
+            ref={dateInputRef}
+            type="date"
+            className="visually-hidden"
+            tabIndex={-1}
+            value={weekStartISO}
+            onChange={(e) => jumpToDate(e.target.value)}
+            aria-hidden="true"
+          />
+          {repeat?.active && repeat.intervalWeeks ? (
             <button
               type="button"
-              className={`repeat-off-toggle ${!repeat?.active ? "active" : ""}`}
-              disabled={busy || repeat === null || !repeat?.active}
-              onClick={() => void handleDisableRepeat()}
+              className="chip chip-basil chip-button"
+              onClick={() => setPanel("repeat")}
             >
-              Non
+              <Icon name="repeat" size={16} />
+              Répétée {formatInterval(repeat.intervalWeeks)}
             </button>
-            <div className="repeat-frequency-input">
-              <span>Toutes les</span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                className="input"
-                value={frequencyInput}
-                disabled={busy || repeat === null}
-                onChange={(e) => setFrequencyInput(Number(e.target.value))}
-                style={{ width: "3.5rem" }}
-                aria-label="Nombre de semaines entre chaque répétition"
-              />
-              <span>semaine{frequencyInput > 1 ? "s" : ""}</span>
-            </div>
-            <Button
-              size="sm"
-              disabled={busy || repeat === null || frequencyInput < 1}
-              onClick={() => void handleApplyFrequency()}
-            >
-              {repeat?.active ? "Mettre à jour" : "Activer"}
-            </Button>
-          </div>
-          {repeat?.active ? (
-            <p className="repeat-hint">
-              Modèle basé sur la semaine du {formatDateLong(repeat.startDate ?? weekStartISO)},
-              répété toutes les {repeat.intervalWeeks} semaine
-              {(repeat.intervalWeeks ?? 1) > 1 ? "s" : ""}, visible sur les cases
-              encadrées en vert. Modifier une case déjà remplie proposera de choisir : cette
-              semaine seulement, ou le modèle pour toutes les semaines à venir. Remplir
-              une case vide l&apos;ajoute simplement pour cette semaine-là.
-            </p>
-          ) : (
-            <p className="repeat-hint">
-              Remplis la semaine, choisis une fréquence, puis clique sur « Activer » pour la
-              prolonger automatiquement.
-            </p>
-          )}
+          ) : null}
         </div>
+      </header>
 
-        <div className="repeat-panel">
-          <span className="repeat-panel-label">Semaines enregistrées</span>
-          <div className="row" style={{ gap: "0.5rem", flexWrap: "wrap" }}>
-            <Button
-              size="sm"
-              disabled={busy || !meals || meals.length === 0}
-              onClick={() => void openSavedWeeks("save")}
-            >
-              Enregistrer cette semaine
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={busy}
-              onClick={() => void openSavedWeeks("use")}
-            >
-              Remplir depuis une semaine enregistrée
-            </Button>
-          </div>
-        </div>
-
-        <div className="repeat-panel">
-          <span className="repeat-panel-label">Vider</span>
-          <div className="row" style={{ gap: "0.5rem" }}>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={busy}
-              onClick={() => void handleClearWeek()}
-            >
-              Cette semaine
-            </Button>
-            <Button
-              variant="danger"
-              size="sm"
-              disabled={busy}
-              onClick={() => void handleClearAll()}
-            >
-              Toutes les semaines
-            </Button>
-          </div>
-        </div>
-
-        <div className="repeat-panel">
-          <span className="repeat-panel-label">Affichage</span>
-          <div className="row">
-            <DisplayToggle
-              label="Petit-déjeuner"
-              checked={showBreakfast}
-              onChange={setShowBreakfast}
-            />
-            <DisplayToggle
-              label="Collation"
-              checked={showSnack}
-              onChange={setShowSnack}
-            />
-            <DisplayToggle
-              label="Calories du jour"
-              checked={showCalories}
-              onChange={setShowCalories}
-            />
-            <DisplayToggle
-              label="Protéines du jour"
-              checked={showProtein}
-              onChange={setShowProtein}
-            />
-          </div>
-        </div>
-      </div>
-
-      {error ? (
-        <p style={{ color: "var(--danger)", fontWeight: 650 }}>{error}</p>
-      ) : null}
-      {hint && !error ? (
-        <p style={{ color: "var(--accent-dark)", fontWeight: 600, margin: 0 }}>
-          {hint}
-        </p>
-      ) : null}
-
-      <label className="week-calendar-bar">
-        <span aria-hidden="true">📅</span>
-        <input
-          type="date"
-          className="week-calendar-input"
-          value={weekStartISO}
-          disabled={busy}
-          onChange={(e) => jumpToDate(e.target.value)}
-          aria-label="Aller directement à la semaine d'une date (pour sauter plusieurs semaines)"
-          title="Aller directement à une semaine précise"
-        />
-      </label>
-
-      <div className="week-grid-row">
+      <div className="toolbar" role="toolbar" aria-label="Options du planning">
         <button
           type="button"
-          className="week-edge-nav"
-          onClick={previousWeek}
-          disabled={busy}
-          aria-label="Semaine précédente"
+          className="tool"
+          disabled={busy || repeat === null}
+          onClick={() => setPanel("repeat")}
         >
-          ‹
+          <Icon name="repeat" size={18} />
+          Répétition
         </button>
+        <button
+          type="button"
+          className="tool"
+          disabled={busy}
+          onClick={() => void openSavedWeeks()}
+        >
+          <Icon name="bookmark" size={18} />
+          Semaines enregistrées
+        </button>
+        <button type="button" className="tool" onClick={() => setPanel("display")}>
+          <Icon name="sliders" size={18} />
+          Affichage
+        </button>
+        <button
+          type="button"
+          className="tool tool-danger"
+          disabled={busy}
+          onClick={() => setPanel("clear")}
+        >
+          <Icon name="trash" size={18} />
+          Vider
+        </button>
+      </div>
 
-        {meals === null ? (
-          <Spinner />
-        ) : (
-        <div className="week-grid">
-          <div className="week-slot-col">
-            <div className="week-day-head" aria-hidden="true">
-              .
-              <br />
-              <span style={{ fontSize: "0.78rem", fontWeight: 500 }}>.</span>
-            </div>
+      {loadError ? (
+        <div className="notice notice-error" role="alert">
+          {loadError}
+        </div>
+      ) : meals === null ? (
+        <Spinner />
+      ) : (
+        <div
+          className="week-grid"
+          style={{ "--slots": visibleSlots.length } as React.CSSProperties}
+          aria-busy={busy}
+        >
+          <div className="week-slot-col" aria-hidden="true">
+            <div className="week-day-head" />
             {visibleSlots.map((slot) => (
               <div key={slot} className="week-slot-label">
                 {MEAL_SLOT_LABELS[slot]}
@@ -699,7 +660,7 @@ export function PlanningScreen() {
           {Array.from({ length: WEEK_DAYS }, (_, i) => {
             const date = addDays(weekStart, i);
             const dateISO = toISODate(date);
-            const isToday = dateISO === toISODate(new Date());
+            const isToday = dateISO === todayISO;
             const dayMeals = (meals ?? []).filter((m) => m.date === dateISO);
             const bySlot = new Map(dayMeals.map((m) => [m.mealSlot, m]));
             // Seuls les créneaux affichés comptent : le total doit
@@ -709,16 +670,24 @@ export function PlanningScreen() {
             );
 
             return (
-              <div key={dateISO} className="week-day-col">
-                <div className={`week-day-head ${isToday ? "today" : ""}`}>
-                  {DAY_LABELS[i]}
-                  <br />
-                  <span style={{ fontSize: "0.78rem", fontWeight: 500 }}>
-                    {formatDateShort(dateISO).split(" ")[1] ?? ""}
-                  </span>
+              <section
+                key={dateISO}
+                className={`week-day-col ${isToday ? "today" : ""}`}
+                aria-label={formatDateLong(dateISO)}
+              >
+                <div className="week-day-head">
+                  <span className="day-name">{DAY_LABELS[i]}</span>
+                  <span className="day-name-long">{DAY_LABELS_LONG[i]}</span>
+                  <span className="day-num">{date.getDate()}</span>
+                  {isToday ? <span className="day-today">Aujourd&apos;hui</span> : null}
                 </div>
                 {visibleSlots.map((slot) => {
                   const meal = bySlot.get(slot);
+                  const label = meal
+                    ? meal.special
+                      ? SPECIAL_MEAL_LABELS[meal.special]
+                      : meal.dishName
+                    : null;
                   return (
                     <button
                       key={slot}
@@ -728,24 +697,34 @@ export function PlanningScreen() {
                       } ${meal?.special ? "meal-cell-special" : ""}`}
                       title={
                         meal?.mealCycleId
-                          ? "Fait partie du modèle de répétition actif (barre « Répéter » en haut). Le modifier proposera de choisir : cette semaine seulement, ou le modèle pour toutes les semaines à venir."
+                          ? "Fait partie du modèle répété. Le modifier proposera : cette semaine seulement, ou toutes les semaines à venir."
                           : undefined
                       }
+                      aria-label={`${MEAL_SLOT_LABELS[slot]}, ${formatDateLong(dateISO)} : ${
+                        label ?? "vide, ajouter un repas"
+                      }`}
                       onClick={() => handleCellClick(dateISO, slot)}
                       disabled={busy}
                     >
-                      {meal ? (
-                        <span className="meal-cell-name">
-                          {meal.special ? SPECIAL_MEAL_LABELS[meal.special] : meal.dishName}
-                        </span>
+                      <span className="meal-cell-slot">{MEAL_SLOT_LABELS[slot]}</span>
+                      {label ? (
+                        <span className="meal-cell-name">{label}</span>
                       ) : (
-                        <span>+</span>
+                        <span className="meal-cell-add">
+                          <Icon name="plus" size={18} />
+                        </span>
                       )}
+                      {meal?.mealCycleId ? (
+                        <span className="meal-cell-flag" aria-hidden="true">
+                          <Icon name="repeat" size={12} />
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
                 {totalsCount > 0 ? (
                   <div className={`week-total-cell week-total-${totalsCount}`}>
+                    <span className="week-total-inline-label">Total</span>
                     {showCalories ? (
                       <span
                         title={
@@ -770,91 +749,198 @@ export function PlanningScreen() {
                     ) : null}
                   </div>
                 ) : null}
-              </div>
+              </section>
             );
           })}
         </div>
-        )}
+      )}
 
-        <button
-          type="button"
-          className="week-edge-nav"
-          onClick={nextWeek}
-          disabled={busy}
-          aria-label="Semaine suivante"
-        >
-          ›
-        </button>
-      </div>
+      {repeat?.active ? (
+        <p className="legend">
+          <span className="legend-swatch" aria-hidden="true" /> Repas du modèle répété
+        </p>
+      ) : null}
 
-      {savedWeeksModal ? (
-        <Modal
-          title={
-            savedWeeksModal === "save" ? "Enregistrer cette semaine" : "Semaines enregistrées"
-          }
-          onClose={() => setSavedWeeksModal(null)}
-        >
+      {panel === "repeat" ? (
+        <Modal title="Répéter cette semaine" onClose={() => setPanel(null)}>
+          <div className="stack">
+            {repeat?.active ? (
+              <p className="muted">
+                Le modèle est la semaine du {formatDateLong(repeat.startDate ?? weekStartISO)},
+                répétée {formatInterval(repeat.intervalWeeks ?? 1)}. Ses repas sont surlignés en
+                vert. Quand tu modifies l&apos;un d&apos;eux, tu choisis : cette semaine
+                seulement, ou toutes les semaines à venir.
+              </p>
+            ) : (
+              <p className="muted">
+                Remplis la semaine affichée, puis choisis une fréquence : ses repas
+                s&apos;ajouteront automatiquement aux semaines suivantes.
+              </p>
+            )}
+            <div className="inline-field">
+              <label htmlFor="repeat-frequency">Toutes les</label>
+              <input
+                id="repeat-frequency"
+                type="number"
+                min={1}
+                step={1}
+                inputMode="numeric"
+                className="input input-narrow"
+                value={frequencyInput}
+                disabled={busy}
+                onChange={(e) => setFrequencyInput(Number(e.target.value))}
+              />
+              <span>semaine{frequencyInput > 1 ? "s" : ""}</span>
+            </div>
+            <div className="modal-actions">
+              {repeat?.active ? (
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => void handleDisableRepeat()}
+                >
+                  Arrêter la répétition
+                </Button>
+              ) : null}
+              <Button
+                disabled={busy || frequencyInput < 1}
+                onClick={() => void handleApplyFrequency()}
+              >
+                {repeat?.active ? "Mettre à jour" : "Répéter cette semaine"}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {panel === "saved" ? (
+        <Modal title="Semaines enregistrées" onClose={() => setPanel(null)}>
           {savedWeeks === null ? (
             <Spinner />
-          ) : savedWeeksModal === "save" ? (
-            <form className="stack" onSubmit={(e) => void handleSaveWeek(e)}>
-              <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor="saved-week-name">Nom</label>
-                <input
-                  id="saved-week-name"
-                  className="input"
-                  autoFocus
-                  value={saveName}
-                  onChange={(e) => setSaveName(e.target.value)}
-                />
-              </div>
-              <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.85rem" }}>
-                Les {meals?.length ?? 0} repas de la semaine affichée (plats et jours) pourront
-                ensuite remplir n&apos;importe quelle semaine du planning.
-              </p>
-              <Button type="submit" disabled={busy || !saveName.trim()}>
-                Enregistrer
-              </Button>
-            </form>
-          ) : savedWeeks.length === 0 ? (
-            <p className="empty" style={{ padding: "1rem" }}>
-              Aucune semaine enregistrée. Remplis une semaine puis clique sur « Enregistrer cette
-              semaine ».
-            </p>
           ) : (
-            <div className="stack" style={{ gap: "0.55rem" }}>
-              <p style={{ margin: 0, color: "var(--muted)", fontSize: "0.85rem" }}>
-                Remplace tous les repas de la semaine du {formatWeekRange(weekStartISO, weekEndISO)}.
-              </p>
-              {savedWeeks.map((week) => (
-                <div key={week.id} className="shop-item">
-                  <span className="shop-name">
-                    {week.name}
-                    <br />
-                    <span style={{ color: "var(--muted)", fontSize: "0.8rem", fontWeight: 500 }}>
-                      {week.entries.length} repas
-                    </span>
-                  </span>
-                  <Button
-                    size="sm"
-                    disabled={busy || week.entries.length === 0}
-                    onClick={() => void handleApplySavedWeek(week)}
-                  >
-                    Utiliser
-                  </Button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-icon"
-                    aria-label={`Supprimer ${week.name}`}
-                    disabled={busy}
-                    onClick={() => void handleDeleteSavedWeek(week)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+            <div className="stack">
+              <form className="panel-section" onSubmit={(e) => void handleSaveWeek(e)}>
+                <h3 className="panel-heading">Enregistrer la semaine affichée</h3>
+                {meals && meals.length > 0 ? (
+                  <>
+                    <div className="input-with-button">
+                      <input
+                        id="saved-week-name"
+                        className="input"
+                        aria-label="Nom de la semaine"
+                        value={saveName}
+                        onChange={(e) => setSaveName(e.target.value)}
+                      />
+                      <Button type="submit" disabled={busy || !saveName.trim()}>
+                        Enregistrer
+                      </Button>
+                    </div>
+                    <p className="field-hint">
+                      Ses {meals.length} repas pourront remplir n&apos;importe quelle autre
+                      semaine.
+                    </p>
+                  </>
+                ) : (
+                  <p className="field-hint">Cette semaine est vide : rien à enregistrer.</p>
+                )}
+              </form>
+
+              <div className="panel-section">
+                <h3 className="panel-heading">Remplir cette semaine avec…</h3>
+                {savedWeeks.length === 0 ? (
+                  <p className="field-hint">
+                    Aucune semaine enregistrée pour l&apos;instant.
+                  </p>
+                ) : (
+                  <ul className="list">
+                    {savedWeeks.map((week) => (
+                      <li key={week.id} className="list-row">
+                        <span className="list-row-main">
+                          <span className="list-row-title">{week.name}</span>
+                          <span className="list-row-sub">{week.entries.length} repas</span>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busy || week.entries.length === 0}
+                          onClick={() => void handleApplySavedWeek(week)}
+                        >
+                          Utiliser
+                        </Button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-icon"
+                          aria-label={`Supprimer ${week.name}`}
+                          disabled={busy}
+                          onClick={() => void handleDeleteSavedWeek(week)}
+                        >
+                          <Icon name="trash" size={18} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           )}
+        </Modal>
+      ) : null}
+
+      {panel === "display" ? (
+        <Modal title="Affichage" onClose={() => setPanel(null)}>
+          <div className="switch-list">
+            <DisplayToggle
+              label="Petit-déjeuner"
+              checked={showBreakfast}
+              onChange={setShowBreakfast}
+            />
+            <DisplayToggle label="Collation" checked={showSnack} onChange={setShowSnack} />
+            <DisplayToggle
+              label="Calories du jour"
+              description="Somme des repas affichés, pour une portion."
+              checked={showCalories}
+              onChange={setShowCalories}
+            />
+            <DisplayToggle
+              label="Protéines du jour"
+              description="Somme des repas affichés, pour une portion."
+              checked={showProtein}
+              onChange={setShowProtein}
+            />
+          </div>
+          <p className="field-hint" style={{ marginTop: "0.75rem" }}>
+            Mémorisé sur cet appareil.
+          </p>
+        </Modal>
+      ) : null}
+
+      {panel === "clear" ? (
+        <Modal title="Vider le planning" onClose={() => setPanel(null)} size="sm">
+          <div className="stack">
+            <p className="muted">Cette action est définitive.</p>
+            <button
+              type="button"
+              className="choice choice-danger"
+              disabled={busy}
+              onClick={() => void handleClearWeek()}
+            >
+              <span className="choice-title">Vider cette semaine</span>
+              <span className="choice-desc">
+                Retire les repas du {formatWeekRange(weekStartISO, weekEndISO)}.
+              </span>
+            </button>
+            <button
+              type="button"
+              className="choice choice-danger"
+              disabled={busy}
+              onClick={() => void handleClearAll()}
+            >
+              <span className="choice-title">Vider toutes les semaines</span>
+              <span className="choice-desc">
+                Retire tous les repas, passés et à venir, et arrête la répétition.
+              </span>
+            </button>
+          </div>
         </Modal>
       ) : null}
 
@@ -871,8 +957,8 @@ export function PlanningScreen() {
         <Modal
           title={
             choosingScope
-              ? "Appliquer ce changement"
-              : `${formatDateLong(editingCell.date)} — ${MEAL_SLOT_LABELS[editingCell.mealSlot]}`
+              ? "Appliquer ce changement à…"
+              : `${MEAL_SLOT_LABELS[editingCell.mealSlot]}, ${formatDateLong(editingCell.date)}`
           }
           onClose={() => {
             setEditingCell(null);
@@ -881,80 +967,92 @@ export function PlanningScreen() {
         >
           {choosingScope ? (
             <div className="stack">
-              <p style={{ margin: 0, color: "var(--muted)" }}>
-                Une répétition est active. Ce changement concerne…
-              </p>
-              <Button
-                variant="primary"
+              <button
+                type="button"
+                className="choice"
                 disabled={busy}
                 onClick={() => void handleScopeChoice("this_week")}
               >
-                Cette semaine seulement
-              </Button>
-              <Button
+                <span className="choice-title">Cette semaine seulement</span>
+                <span className="choice-desc">Le modèle répété ne change pas.</span>
+              </button>
+              <button
+                type="button"
+                className="choice"
                 disabled={busy}
                 onClick={() => void handleScopeChoice("all_future")}
               >
-                Le modèle (toutes les semaines à venir)
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setPendingDishId(undefined)}
-              >
+                <span className="choice-title">Toutes les semaines à venir</span>
+                <span className="choice-desc">Le modèle répété est modifié.</span>
+              </button>
+              <Button variant="ghost" onClick={() => setPendingDishId(undefined)}>
                 Retour
               </Button>
             </div>
           ) : (
-            <div className="stack" style={{ gap: "0.5rem" }}>
-              <div className="row" style={{ gap: "0.5rem", flexWrap: "nowrap" }}>
-                <input
-                  type="search"
-                  className="input"
-                  placeholder="Rechercher un plat…"
-                  aria-label="Rechercher un plat"
-                  value={dishSearch}
-                  onChange={(e) => setDishSearch(e.target.value)}
-                  style={{ flex: 1, minWidth: 0 }}
-                />
-                <Button size="sm" onClick={() => setCreatingDish(true)} style={{ whiteSpace: "nowrap" }}>
-                  + Nouveau plat
+            <div className="stack" style={{ gap: "0.75rem" }}>
+              <div className="search-row">
+                <div className="search-field">
+                  <Icon name="search" size={18} />
+                  <input
+                    type="search"
+                    className="input"
+                    placeholder="Rechercher un plat"
+                    aria-label="Rechercher un plat"
+                    value={dishSearch}
+                    onChange={(e) => setDishSearch(e.target.value)}
+                  />
+                </div>
+                <Button variant="secondary" onClick={() => setCreatingDish(true)}>
+                  <Icon name="plus" size={18} />
+                  Nouveau plat
                 </Button>
               </div>
-              <div className="dish-pick-list">
+
+              <div className="pick-quick">
                 <button
                   type="button"
-                  className="dish-pick-item"
-                  onClick={() => handlePickDish(null)}
-                  disabled={!editingMeal}
-                  style={{ color: "var(--danger)" }}
-                >
-                  Retirer le repas
-                </button>
-                <button
-                  type="button"
-                  className="dish-pick-item dish-pick-special"
+                  className="chip chip-button"
                   onClick={() => handlePickSpecial("eating_out")}
                 >
-                  <span aria-hidden="true">🍽️</span>
+                  <Icon name="utensils" size={16} />
                   {SPECIAL_MEAL_LABELS.eating_out}
                 </button>
-                {filteredDishes.map((dish) => (
+                {editingMeal ? (
                   <button
-                    key={dish.id}
                     type="button"
-                    className="dish-pick-item"
-                    onClick={() => handlePickDish(dish.id)}
+                    className="chip chip-button chip-danger"
+                    onClick={() => handlePickDish(null)}
                   >
-                    {dish.name}
+                    <Icon name="close" size={16} />
+                    Retirer le repas
                   </button>
-                ))}
+                ) : null}
+              </div>
+
+              <div className="dish-pick-list">
+                {filteredDishes.map((dish) => {
+                  const isCurrent = editingMeal?.dishId === dish.id;
+                  return (
+                    <button
+                      key={dish.id}
+                      type="button"
+                      className={`dish-pick-item ${isCurrent ? "current" : ""}`}
+                      aria-current={isCurrent ? "true" : undefined}
+                      onClick={() => handlePickDish(dish.id)}
+                    >
+                      <span>{dish.name}</span>
+                      {isCurrent ? <Icon name="check" size={18} /> : null}
+                    </button>
+                  );
+                })}
                 {dishes.length === 0 ? (
-                  <p className="empty" style={{ padding: "1rem" }}>
-                    Aucun plat. Crée-en un avec « + Nouveau plat ».
+                  <p className="empty-inline">
+                    Aucun plat pour l&apos;instant. Crée le premier avec « Nouveau plat ».
                   </p>
                 ) : filteredDishes.length === 0 ? (
-                  <p className="empty" style={{ padding: "1rem" }}>
-                    Aucun plat ne correspond à « {dishSearch.trim()} ». « + Nouveau plat » le crée
+                  <p className="empty-inline">
+                    Aucun plat ne correspond à « {dishSearch.trim()} ». « Nouveau plat » le crée
                     avec ce nom.
                   </p>
                 ) : null}

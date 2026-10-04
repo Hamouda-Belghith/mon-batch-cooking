@@ -1,17 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Sans, Fraunces } from "next/font/google";
+import { Bricolage_Grotesque } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const dmSans = DM_Sans({
+// Une seule famille : condensée et grasse pour les titres (semaine du
+// planning), à taille de texte partout ailleurs (axe optique).
+const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
+  axes: ["opsz", "wdth"],
   variable: "--font-sans",
-  display: "swap",
-});
-
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  variable: "--font-display",
   display: "swap",
 });
 
@@ -27,9 +24,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1f6b4a",
+  themeColor: "#f1f3f0",
   width: "device-width",
   initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -38,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" className={`${dmSans.variable} ${fraunces.variable}`}>
+    <html lang="fr" className={bricolage.variable}>
       <body>
         <Providers>{children}</Providers>
       </body>

@@ -20,7 +20,8 @@ accueillir d'autres foyers pour l'instant.
 - Créer un planning de repas pour chaque jour, avec distinction entre
   petit-déjeuner, déjeuner, collation et dîner. Le petit-déjeuner et la
   collation peuvent être masqués depuis le panneau « Affichage » du
-  Planning. Les cases issues de la répétition sont encadrées en vert.
+  Planning. Les cases issues de la répétition sont surlignées en vert.
+  Sur téléphone, le Planning s'affiche en agenda (un bloc par jour).
 - Sur une case du planning, choisir un repas « spécial » (ex. « Manger
   dehors ») à la place d'un plat : ne compte pas dans la liste de
   courses, ne fait jamais partie du motif de répétition.

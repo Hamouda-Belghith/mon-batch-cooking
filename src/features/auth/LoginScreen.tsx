@@ -89,52 +89,35 @@ export function LoginScreen() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "1rem",
-      }}
-    >
-      <div className="card" style={{ width: "100%", maxWidth: 420 }}>
-        <h1 style={{ fontSize: "1.5rem" }}>🍽️ Meal Planner</h1>
-        <p style={{ marginTop: 0, color: "var(--muted)" }}>
-          Planification de repas et liste de courses.
-        </p>
+    <div className="login">
+      <div className="login-card">
+        <p className="brand login-brand">Meal Planner</p>
+        <h1 className="login-title">
+          {mode === "signin" ? "Qu'est-ce qu'on mange cette semaine ?" : "Créer un compte"}
+        </h1>
+        <p className="page-sub">Planning des repas et liste de courses, à deux.</p>
 
         {showConfigWarning ? (
-          <div
-            className="card"
-            style={{ background: "var(--warn-soft)", boxShadow: "none" }}
-          >
-            <p style={{ margin: 0, fontWeight: 700 }}>
-              ⚠️ Configuration manquante
-            </p>
-            <p style={{ marginBottom: 0 }}>
-              Les variables <code>NEXT_PUBLIC_SUPABASE_URL</code> et <code>
-              NEXT_PUBLIC_SUPABASE_ANON_KEY</code> ne sont pas définies. Copie
-              <code>.env.local.example</code> vers <code>.env.local</code> et
-              renseigne les valeurs de ton projet Supabase.
-            </p>
+          <div className="notice notice-warn">
+            <div>
+              <strong>Configuration manquante.</strong> Les variables{" "}
+              <code>NEXT_PUBLIC_SUPABASE_URL</code> et <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>{" "}
+              ne sont pas définies. Copie <code>.env.local.example</code> vers{" "}
+              <code>.env.local</code> et renseigne les valeurs de ton projet Supabase.
+            </div>
           </div>
         ) : (
           <>
             {demo ? (
-              <div
-                className="card"
-                style={{ background: "var(--accent-soft)", boxShadow: "none" }}
-              >
-                <p style={{ margin: 0, fontWeight: 700 }}>Mode démo activé</p>
-                <p style={{ marginBottom: 0 }}>
-                  L'application fonctionne localement sans Supabase. Les données
-                  sont stockées dans ton navigateur uniquement.
-                </p>
+              <div className="notice notice-info">
+                <div>
+                  <strong>Mode démo.</strong> Les données restent dans ce navigateur, sans
+                  Supabase.
+                </div>
               </div>
             ) : null}
 
-            <form onSubmit={handleSubmit} style={{ marginTop: "1rem" }}>
+            <form onSubmit={handleSubmit} className="login-form">
               <Field
                 label="Email"
                 name="email"
@@ -156,31 +139,39 @@ export function LoginScreen() {
               />
 
               {error ? (
-                <p style={{ color: "var(--danger)", fontWeight: 700 }}>{error}</p>
+                <div className="notice notice-error" role="alert">
+                  {error}
+                </div>
               ) : null}
               {message ? (
-                <p style={{ color: "var(--accent-dark)", fontWeight: 700 }}>
+                <p className="status-ok" role="status">
                   {message}
                 </p>
               ) : null}
 
-              <Button type="submit" disabled={sending} className="btn-block">
-                {sending ? "…" : mode === "signin" ? "Se connecter" : "Créer le compte"}
+              <Button type="submit" disabled={sending} className="btn-block btn-lg">
+                {sending
+                  ? mode === "signin"
+                    ? "Connexion…"
+                    : "Création…"
+                  : mode === "signin"
+                    ? "Se connecter"
+                    : "Créer le compte"}
               </Button>
             </form>
           </>
         )}
 
-        <button
-          type="button"
-          className="btn btn-ghost btn-block"
-          style={{ marginTop: "0.75rem" }}
-          onClick={() => setMode((m) => (m === "signin" ? "signup" : "signin"))}
-        >
-          {mode === "signin"
-            ? "Pas encore de compte ? Créer un compte"
-            : "Déjà un compte ? Se connecter"}
-        </button>
+        <p className="login-switch">
+          {mode === "signin" ? "Pas encore de compte ?" : "Déjà un compte ?"}{" "}
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => setMode((m) => (m === "signin" ? "signup" : "signin"))}
+          >
+            {mode === "signin" ? "Créer un compte" : "Se connecter"}
+          </button>
+        </p>
       </div>
     </div>
   );
