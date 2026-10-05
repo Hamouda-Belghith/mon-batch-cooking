@@ -82,6 +82,27 @@ Ouvrir http://localhost:3000
 4. Déployer : Vercel fournit une URL en `https://xxxx.vercel.app`, utilisable
    telle quelle, ou avec un nom de domaine personnalisé plus tard si voulu.
 
+#### Environnements (dev / prod)
+
+Le déploiement passe uniquement par l'intégration Git de Vercel (pas de
+GitHub Action) :
+
+| Branche | Environnement Vercel | URL | Base Supabase |
+|---------|----------------------|-----|---------------|
+| `dev`   | Preview (domaine de branche) | https://mon-batch-cooking-dev.vercel.app | projet Supabase dev |
+| `main`  | Production | https://mon-batch-cooking.vercel.app | projet Supabase prod |
+
+- Les nouvelles fonctionnalités sont commitées et poussées sur `dev` :
+  Vercel déploie automatiquement sur l'URL dev.
+- Mise en production : fusionner `dev` dans `main` (fast-forward) et pousser.
+  `git checkout main && git merge --ff-only dev && git push && git checkout dev`
+- Les variables Supabase de l'environnement Preview sont limitées à la branche
+  `dev` et pointent vers le projet Supabase dev ; celles de Production pointent
+  vers le projet prod. Les migrations (`supabase/migrations`) sont d'abord
+  appliquées sur dev, puis sur prod au moment de la mise en production.
+- Les déploiements Preview sont protégés par Vercel Authentication : il faut
+  être connecté à son compte Vercel pour ouvrir l'URL dev.
+
 ### 6. Installer la PWA sur téléphone
 
 Ouvrir l'URL déployée dans Safari (iOS) ou Chrome (Android), puis
