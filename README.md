@@ -1,4 +1,4 @@
-# What to eat: Meal Planner
+# Mon Batch Cooking
 
 PWA de planification de repas et liste de courses, à usage privé (2
 utilisateurs). Permet de créer des plats avec leurs ingrédients, de
