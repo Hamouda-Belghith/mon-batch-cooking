@@ -51,7 +51,7 @@ export function Nav() {
       <header className="topbar">
         <div className="topbar-inner">
           <Link href="/" className="brand">
-            Meal Planner
+            Mon Batch Cooking
           </Link>
           <nav className="topbar-links" aria-label="Navigation principale">
             {tabs.map((tab) => (

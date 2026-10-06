@@ -91,7 +91,7 @@ export function LoginScreen() {
   return (
     <div className="login">
       <div className="login-card">
-        <p className="brand login-brand">Meal Planner</p>
+        <p className="brand login-brand">Mon Batch Cooking</p>
         <h1 className="login-title">
           {mode === "signin" ? "Qu'est-ce qu'on mange cette semaine ?" : "Créer un compte"}
         </h1>

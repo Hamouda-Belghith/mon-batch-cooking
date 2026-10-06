@@ -13,13 +13,13 @@ const bricolage = Bricolage_Grotesque({
 });
 
 export const metadata: Metadata = {
-  title: "Meal Planner",
+  title: "Mon Batch Cooking",
   description: "Planification de repas et liste de courses",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Meal Planner",
+    title: "Batch Cooking",
   },
 };
 

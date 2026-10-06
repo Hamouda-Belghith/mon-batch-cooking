@@ -1,6 +1,6 @@
 {
-  "name": "Meal Planner",
-  "short_name": "Repas",
+  "name": "Mon Batch Cooking",
+  "short_name": "Batch Cooking",
   "description": "Planification de repas et liste de courses",
   "start_url": "/",
   "display": "standalone",
