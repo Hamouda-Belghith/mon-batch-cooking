@@ -3,6 +3,15 @@
 Date: 2026-10-06
 
 Résumé:
+- **Glisser-déposer dans le Planning** (2026-10-06) : faire glisser un
+  repas sur une autre case échange les deux (case vide = déplacement).
+  Souris : glisser directement ; téléphone : appui long puis glisser
+  (le défilement normal reste possible, la page défile près des bords).
+  Implémenté sans dépendance avec les Pointer Events
+  (`src/features/planning/useMealDrag.ts`). Alternative sans glisser :
+  « Échanger avec… » dans la modale d'une case, puis toucher la case
+  cible. Motif de répétition actif : même question de portée qu'une
+  modification. Pas de migration.
 - **Catégories de plats + renommage des courses supplémentaires**
   (2026-10-06) : chaque plat a une ou plusieurs catégories
   (petit-déjeuner, déjeuner, collation, dîner), choisies dans le

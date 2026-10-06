@@ -18,6 +18,7 @@ import {
 import type { MealSlot } from "@/lib/supabase/database.types";
 import { DISH_CATEGORY_LABELS, type Dish } from "@/features/dishes/types";
 import { DishFormModal } from "@/features/dishes/DishFormModal";
+import { cellKey, useMealDrag, type CellRef } from "./useMealDrag";
 import {
   fetchDishesForCycles,
   MEAL_SLOTS,
@@ -164,6 +165,13 @@ export function PlanningScreen() {
   const [pendingDishId, setPendingDishId] = useState<string | null | undefined>(
     undefined
   );
+
+  // Échange de deux cases : par glisser-déposer, ou « Échanger avec… »
+  // depuis la modale d'une case (`swapSource` = en attente de la case
+  // cible). `pendingSwap` = échange en attente du choix de portée
+  // (motif de répétition actif).
+  const [swapSource, setSwapSource] = useState<CellRef | null>(null);
+  const [pendingSwap, setPendingSwap] = useState<{ from: CellRef; to: CellRef } | null>(null);
 
   const [nextWeekEmpty, setNextWeekEmpty] = useState<{
     startISO: string;
@@ -430,7 +438,64 @@ export function PlanningScreen() {
     }
   }
 
+  function findMeal(cell: CellRef): PlannedMeal | undefined {
+    return (meals ?? []).find((m) => m.date === cell.date && m.mealSlot === cell.mealSlot);
+  }
+
+  function requestSwap(from: CellRef, to: CellRef) {
+    setSwapSource(null);
+    if (cellKey(from) === cellKey(to)) return;
+    if (repeat?.active) {
+      // Comme pour une modification : cette semaine seulement, ou le
+      // modèle répété aussi.
+      setPendingSwap({ from, to });
+      return;
+    }
+    void performSwap(from, to, null);
+  }
+
+  /**
+   * Échange le contenu de deux cases (plat, repas spécial ou rien) :
+   * déposer sur une case vide revient à déplacer le repas.
+   */
+  async function performSwap(a: CellRef, b: CellRef, scope: MealEditScope | null) {
+    const mealA = findMeal(a);
+    const mealB = findMeal(b);
+    const sameCell = (m: PlannedMeal, c: CellRef) => m.date === c.date && m.mealSlot === c.mealSlot;
+    // Affichage immédiat ; le rechargement qui suit fait foi.
+    setMeals((prev) =>
+      prev?.map((m) =>
+        sameCell(m, a)
+          ? { ...m, date: b.date, mealSlot: b.mealSlot }
+          : sameCell(m, b)
+            ? { ...m, date: a.date, mealSlot: a.mealSlot }
+            : m
+      ) ?? prev
+    );
+    setBusy(true);
+    try {
+      await setMealWithScope(b.date, b.mealSlot, mealA?.dishId ?? null, scope, mealA?.special ?? null);
+      await setMealWithScope(a.date, a.mealSlot, mealB?.dishId ?? null, scope, mealB?.special ?? null);
+    } catch (err) {
+      reportError(err, "Échange impossible");
+    } finally {
+      await loadMeals().catch(() => undefined);
+      setBusy(false);
+    }
+  }
+
+  async function handleSwapScopeChoice(scope: MealEditScope) {
+    if (!pendingSwap) return;
+    const { from, to } = pendingSwap;
+    setPendingSwap(null);
+    await performSwap(from, to, scope);
+  }
+
   function handleCellClick(date: string, mealSlot: MealSlot) {
+    if (swapSource) {
+      requestSwap(swapSource, { date, mealSlot });
+      return;
+    }
     setPendingDishId(undefined);
     setDishSearch("");
     setCreatingDish(false);
@@ -507,6 +572,11 @@ export function PlanningScreen() {
     : undefined;
 
   const choosingScope = editingCell !== null && pendingDishId !== undefined;
+
+  const drag = useMealDrag({
+    enabled: !busy && !editingCell && !pendingSwap && !swapSource && panel === null,
+    onDrop: requestSwap,
+  });
 
   // Seuls les plats de la catégorie du repas sont proposés. Le plat déjà
   // posé dans la case reste visible même s'il n'en fait pas (ou plus) partie.
@@ -648,6 +718,18 @@ export function PlanningScreen() {
       ) : meals === null ? (
         <Spinner />
       ) : (
+        <>
+        {swapSource ? (
+          <div className="notice notice-info swap-banner" role="status">
+            <span>
+              Touche la case avec laquelle échanger{" "}
+              <strong>{findMeal(swapSource)?.dishName ?? "ce repas"}</strong>.
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => setSwapSource(null)}>
+              Annuler
+            </Button>
+          </div>
+        ) : null}
         <div
           className="week-grid"
           style={{ "--slots": visibleSlots.length } as React.CSSProperties}
@@ -696,13 +778,23 @@ export function PlanningScreen() {
                       ? SPECIAL_MEAL_LABELS[meal.special]
                       : meal.dishName
                     : null;
+                  const cell = { date: dateISO, mealSlot: slot };
+                  const key = cellKey(cell);
+                  const isSwapSource =
+                    (drag.dragging && cellKey(drag.dragging.source) === key) ||
+                    (swapSource && cellKey(swapSource) === key);
                   return (
                     <button
                       key={slot}
                       type="button"
+                      {...drag.cellProps(cell, label)}
                       className={`meal-cell ${meal ? "" : "meal-cell-empty"} ${
                         meal?.mealCycleId ? "meal-cell-repeated" : ""
-                      } ${meal?.special ? "meal-cell-special" : ""}`}
+                      } ${meal?.special ? "meal-cell-special" : ""} ${
+                        isSwapSource ? "meal-cell-drag-source" : ""
+                      } ${drag.overKey === key ? "meal-cell-drop-target" : ""} ${
+                        swapSource && !isSwapSource ? "meal-cell-swap-pick" : ""
+                      }`}
                       title={
                         meal?.mealCycleId
                           ? "Fait partie du modèle répété. Le modifier proposera : cette semaine seulement, ou toutes les semaines à venir."
@@ -761,7 +853,46 @@ export function PlanningScreen() {
             );
           })}
         </div>
+        <p className="field-hint drag-hint">
+          Pour échanger deux repas, fais glisser l&apos;un sur l&apos;autre (sur téléphone :
+          appui long puis glisser).
+        </p>
+        </>
       )}
+
+      {drag.dragging ? (
+        <div ref={drag.ghostRef} className="drag-ghost" aria-hidden="true">
+          {drag.dragging.label}
+        </div>
+      ) : null}
+
+      {pendingSwap ? (
+        <Modal title="Échanger ces repas pour…" onClose={() => setPendingSwap(null)}>
+          <div className="stack">
+            <button
+              type="button"
+              className="choice"
+              disabled={busy}
+              onClick={() => void handleSwapScopeChoice("this_week")}
+            >
+              <span className="choice-title">Cette semaine seulement</span>
+              <span className="choice-desc">Le modèle répété ne change pas.</span>
+            </button>
+            <button
+              type="button"
+              className="choice"
+              disabled={busy}
+              onClick={() => void handleSwapScopeChoice("all_future")}
+            >
+              <span className="choice-title">Toutes les semaines à venir</span>
+              <span className="choice-desc">Le modèle répété est modifié.</span>
+            </button>
+            <Button variant="ghost" onClick={() => setPendingSwap(null)}>
+              Annuler
+            </Button>
+          </div>
+        </Modal>
+      ) : null}
 
       {repeat?.active ? (
         <p className="legend">
@@ -1035,6 +1166,19 @@ export function PlanningScreen() {
                   >
                     <Icon name="close" size={16} />
                     Retirer le repas
+                  </button>
+                ) : null}
+                {editingMeal && (editingMeal.dishId || editingMeal.special) ? (
+                  <button
+                    type="button"
+                    className="chip chip-button"
+                    onClick={() => {
+                      setSwapSource(editingCell);
+                      setEditingCell(null);
+                    }}
+                  >
+                    <Icon name="repeat" size={16} />
+                    Échanger avec…
                   </button>
                 ) : null}
               </div>

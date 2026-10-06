@@ -716,6 +716,70 @@ code {
   border-color: var(--basil);
 }
 
+/* Glisser-déposer : pas de sélection de texte ni de menu iOS sur un appui long. */
+.meal-cell {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.meal-cell-drag-source {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.meal-cell-drop-target,
+.meal-cell-drop-target:hover:not(:disabled) {
+  border: 2px dashed var(--basil);
+  background: var(--basil-tint);
+}
+
+.meal-cell-swap-pick {
+  border-color: var(--basil);
+  box-shadow: 0 0 0 1px var(--basil-tint);
+}
+
+body.meal-dragging,
+body.meal-dragging * {
+  cursor: grabbing !important;
+}
+
+.drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  max-width: 14rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--basil);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(23, 32, 28, 0.22);
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--ink);
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Hors écran jusqu'au premier placement par le script. */
+  transform: translate(-9999px, -9999px);
+}
+
+.swap-banner {
+  position: sticky;
+  top: 0.5rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.drag-hint {
+  margin-top: 0.5rem;
+}
+
 .meal-cell:disabled {
   cursor: progress;
 }
