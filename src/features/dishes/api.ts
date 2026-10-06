@@ -7,7 +7,7 @@ import {
   deleteDemoDish,
   isDemoMode,
 } from "@/lib/localDemo";
-import type { Dish } from "./types";
+import { normalizeMealSlots, type Dish } from "./types";
 
 // Les types du schéma sont écrits à la main (régénération prévue via
 // `supabase gen types`). L'inférence de supabase-js produit des `never`
@@ -30,6 +30,7 @@ interface DishRow {
   photo_url: string | null;
   calories: number | null;
   protein_g: number | null;
+  meal_slots: string[] | null;
 }
 
 function mapDishRow(row: DishRow, ingRows: IngredientRow[]): Dish {
@@ -41,6 +42,7 @@ function mapDishRow(row: DishRow, ingRows: IngredientRow[]): Dish {
     calories: row.calories,
     // numeric(6,1) : PostgREST peut le renvoyer sous forme de chaîne.
     proteinG: row.protein_g === null ? null : Number(row.protein_g),
+    mealSlots: normalizeMealSlots(row.meal_slots),
     ingredients: ingRows.map((r) => ({
       ingredientId: r.ingredient_id,
       ingredientName: r.ingredients?.name ?? "",
@@ -63,7 +65,7 @@ export async function fetchDishes(): Promise<Dish[]> {
 
   const { data, error } = (await supabase
     .from("dishes")
-    .select("id, name, description, photo_url, calories, protein_g")
+    .select("id, name, description, photo_url, calories, protein_g, meal_slots")
     .eq("user_id", userId)
     .order("name")) as Result<DishRow>;
 
@@ -288,6 +290,7 @@ export async function saveDish(
     description: dish.description?.trim() || null,
     calories: dish.calories,
     protein_g: dish.proteinG,
+    meal_slots: normalizeMealSlots(dish.mealSlots),
   };
   if (photoUrl !== undefined) payload.photo_url = photoUrl;
 

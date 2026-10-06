@@ -16,7 +16,7 @@ import {
   formatWeekRange,
 } from "@/lib/date";
 import type { MealSlot } from "@/lib/supabase/database.types";
-import type { Dish } from "@/features/dishes/types";
+import { DISH_CATEGORY_LABELS, type Dish } from "@/features/dishes/types";
 import { DishFormModal } from "@/features/dishes/DishFormModal";
 import {
   fetchDishesForCycles,
@@ -508,11 +508,19 @@ export function PlanningScreen() {
 
   const choosingScope = editingCell !== null && pendingDishId !== undefined;
 
+  // Seuls les plats de la catégorie du repas sont proposés. Le plat déjà
+  // posé dans la case reste visible même s'il n'en fait pas (ou plus) partie.
+  const slotDishes = editingCell
+    ? dishes.filter(
+        (dish) =>
+          dish.mealSlots.includes(editingCell.mealSlot) || dish.id === editingMeal?.dishId
+      )
+    : dishes;
   const normalizedDishSearch = dishSearch.trim().toLowerCase();
   const filteredDishes =
     normalizedDishSearch === ""
-      ? dishes
-      : dishes.filter((dish) => dish.name.toLowerCase().includes(normalizedDishSearch));
+      ? slotDishes
+      : slotDishes.filter((dish) => dish.name.toLowerCase().includes(normalizedDishSearch));
 
   const visibleSlots = MEAL_SLOTS.filter(
     (slot) =>
@@ -948,6 +956,7 @@ export function PlanningScreen() {
         <DishFormModal
           dish={null}
           initialName={dishSearch.trim()}
+          initialMealSlots={[editingCell.mealSlot]}
           onClose={() => setCreatingDish(false)}
           onSaved={handleDishCreated}
         />
@@ -1049,6 +1058,12 @@ export function PlanningScreen() {
                 {dishes.length === 0 ? (
                   <p className="empty-inline">
                     Aucun plat pour l&apos;instant. Crée le premier avec « Nouveau plat ».
+                  </p>
+                ) : slotDishes.length === 0 ? (
+                  <p className="empty-inline">
+                    Aucun plat dans la catégorie « {DISH_CATEGORY_LABELS[editingCell.mealSlot]} ».
+                    Crée-en un avec « Nouveau plat », ou ajoute cette catégorie à un plat depuis
+                    l&apos;écran Plats.
                   </p>
                 ) : filteredDishes.length === 0 ? (
                   <p className="empty-inline">

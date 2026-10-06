@@ -1,5 +1,5 @@
 import type { MealSlot } from "@/lib/supabase/database.types";
-import type { Dish, DishIngredient } from "@/features/dishes/types";
+import { normalizeMealSlots, type Dish, type DishIngredient } from "@/features/dishes/types";
 import { MEAL_SLOTS, type MealCycle, type MealCycleEntry } from "@/features/cycles/types";
 import type {
   PlannedMeal,
@@ -28,6 +28,8 @@ interface DemoDish {
   // Absents des états sauvegardés avant l'ajout des apports : lus avec `?? null`.
   calories?: number | null;
   proteinG?: number | null;
+  // Absent des états sauvegardés avant les catégories : lu via normalizeMealSlots.
+  mealSlots?: MealSlot[];
   createdAt: string;
 }
 
@@ -74,6 +76,8 @@ interface DemoState {
   mealCycleEntries: DemoMealCycleEntry[];
   plannedMeals: DemoPlannedMeal[];
   savedWeeks: SavedWeek[];
+  /** Nom personnalisé de « Courses supplémentaires » ; absent = nom par défaut. */
+  extraListName?: string;
 }
 
 function createState(): DemoState {
@@ -152,6 +156,7 @@ export async function fetchDemoDishes(): Promise<Dish[]> {
       photoUrl: dish.photoUrl,
       calories: dish.calories ?? null,
       proteinG: dish.proteinG ?? null,
+      mealSlots: normalizeMealSlots(dish.mealSlots),
       ingredients: state.dishIngredients
         .filter((entry) => entry.dishId === dish.id)
         .map((entry) => ({
@@ -184,6 +189,7 @@ export async function saveDemoDish(
     photoUrl: dish.photoUrl === undefined ? existingPhotoUrl : dish.photoUrl,
     calories: dish.calories,
     proteinG: dish.proteinG,
+    mealSlots: normalizeMealSlots(dish.mealSlots),
     createdAt: now(),
   };
 
@@ -234,6 +240,7 @@ export async function fetchDemoDishesForCycles(): Promise<Dish[]> {
       photoUrl: null,
       calories: dish.calories ?? null,
       proteinG: dish.proteinG ?? null,
+      mealSlots: normalizeMealSlots(dish.mealSlots),
       ingredients: [],
     }))
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
@@ -769,6 +776,16 @@ export async function saveDemoSavedWeek(
 export async function deleteDemoSavedWeek(id: string): Promise<void> {
   const state = loadState();
   state.savedWeeks = state.savedWeeks.filter((w) => w.id !== id);
+  saveState(state);
+}
+
+export async function fetchDemoExtraListName(): Promise<string | null> {
+  return loadState().extraListName ?? null;
+}
+
+export async function saveDemoExtraListName(name: string): Promise<void> {
+  const state = loadState();
+  state.extraListName = name;
   saveState(state);
 }
 

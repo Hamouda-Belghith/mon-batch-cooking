@@ -6,6 +6,31 @@ haut du fichier (ordre antéchronologique).
 
 ---
 
+## 2026-10-06 — Catégories de plats = créneaux du planning ; nom de « Courses supplémentaires » par utilisateur
+
+**Contexte** : le choix d'un plat pour une case du planning proposait
+tous les plats, y compris des plats de dîner pour un petit-déjeuner. Et
+l'onglet « Courses supplémentaires » devait pouvoir être renommé.
+
+**Décision** :
+- `dishes.meal_slots meal_slot_type[]` (migration `0014`), au moins une
+  valeur. Une catégorie (petit-déjeuner, déjeuner, collation, dîner)
+  est exactement un créneau du planning : réutiliser l'enum évite une
+  table de correspondance. Défaut et plats existants : déjeuner + dîner.
+  Le sélecteur du planning ne montre que les plats de la catégorie de
+  la case (plus le plat déjà posé, même hors catégorie). Un plat créé
+  depuis une case est précoché sur la catégorie de cette case.
+- Table `user_settings` (migration `0015`, une ligne par compte, RLS
+  `user_id = auth.uid()`) avec `extra_list_name`. Ligne absente = nom
+  par défaut. Copie locale en `localStorage` pour un affichage immédiat
+  et hors-ligne de l'écran Courses. Renommage : clic sur l'onglet actif.
+
+**Alternatives écartées** : table de jointure plat ↔ catégorie (plus
+lourde pour 4 valeurs fixes) ; nom stocké seulement en `localStorage`
+(non synchronisé entre téléphone et ordinateur).
+
+---
+
 ## 2026-10-04 — Refonte UX/UI : confirmations, notifications et navigation mobile
 
 **Contexte** : demande de rendre l'app plus simple, plus professionnelle

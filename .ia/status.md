@@ -1,8 +1,20 @@
 # État actuel du projet (résumé rapide)
 
-Date: 2026-10-04
+Date: 2026-10-06
 
 Résumé:
+- **Catégories de plats + renommage des courses supplémentaires**
+  (2026-10-06) : chaque plat a une ou plusieurs catégories
+  (petit-déjeuner, déjeuner, collation, dîner), choisies dans le
+  formulaire du plat et affichées dans la liste Plats ; le choix d'un
+  plat dans le Planning ne propose que les plats de la catégorie du
+  repas. L'onglet « Courses supplémentaires » se renomme en cliquant
+  dessus (onglet actif). Unité par défaut « pièce » pour un article
+  ajouté aux courses supplémentaires (déjà le cas pour les ingrédients
+  d'un plat). Migrations `0014_dish_meal_slots.sql` et
+  `0015_user_settings.sql` **appliquées** sur la base (unique, partagée
+  par dev et prod) le 2026-10-06 : les 42 plats existants sont
+  déjeuner + dîner. Voir `.ia/decisions.md`.
 - **Refonte UX/UI** (2026-10-04, branche `ui-rework`) : nouvelle identité
   « carnet de marché » (papier vert-de-gris, encre basilic, marqueur
   moutarde pour aujourd'hui et le compteur « À acheter » ; police unique

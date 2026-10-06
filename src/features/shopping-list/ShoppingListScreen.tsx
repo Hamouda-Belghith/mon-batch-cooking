@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
-import { useConfirm } from "@/components/ui/Feedback";
+import { useConfirm, useToast } from "@/components/ui/Feedback";
 import { UNITS } from "@/lib/units";
 import { fetchIngredients } from "@/features/dishes/api";
 import { formatDateLong, formatQuantity, type DurationUnit } from "@/lib/date";
@@ -21,6 +21,13 @@ import {
   periodFromDuration,
 } from "./generate";
 import { flushPendingMutations } from "./syncQueue";
+import {
+  DEFAULT_EXTRA_LIST_NAME,
+  EXTRA_LIST_NAME_MAX_LENGTH,
+  fetchExtraListName,
+  readCachedExtraListName,
+  saveExtraListName,
+} from "./extraListName";
 import type { ShoppingListItem } from "./types";
 
 const UNIT_OPTIONS: { value: DurationUnit; label: string }[] = [
@@ -39,6 +46,9 @@ type ActionStatus = {
 };
 
 const IDLE_STATUS: ActionStatus = { scope: null, message: null, error: null };
+
+/** Unité proposée par défaut pour un nouvel article. */
+const DEFAULT_UNIT = "pièce";
 
 function StatusBanner({ status, scope }: { status: ActionStatus; scope: ActionStatus["scope"] }) {
   if (status.scope !== scope) return null;
@@ -168,6 +178,7 @@ function IngredientSearchField({
 
 export function ShoppingListScreen() {
   const confirm = useConfirm();
+  const toast = useToast();
   const defaults = useMemo(() => getDefaultPeriod(), []);
   const [amount, setAmount] = useState(defaults.amount);
   const [unit, setUnit] = useState<DurationUnit>(defaults.unit);
@@ -180,8 +191,15 @@ export function ShoppingListScreen() {
 
   const [addName, setAddName] = useState("");
   const [addQuantity, setAddQuantity] = useState(1);
-  const [addUnit, setAddUnit] = useState<string>(UNITS[0]);
+  const [addUnit, setAddUnit] = useState<string>(DEFAULT_UNIT);
   const [ingredientSuggestions, setIngredientSuggestions] = useState<string[]>([]);
+
+  // Nom de l'onglet « Courses supplémentaires », renommable en cliquant
+  // dessus quand il est actif. `nameDraft` non null = en cours d'édition.
+  const [extraListName, setExtraListName] = useState(DEFAULT_EXTRA_LIST_NAME);
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  // Échap : retirer le champ peut déclencher un blur, qui ne doit pas enregistrer.
+  const cancelNameEdit = useRef(false);
 
   const items = useShoppingList();
 
@@ -195,7 +213,30 @@ export function ShoppingListScreen() {
 
   useEffect(() => {
     void fetchIngredients().then(setIngredientSuggestions);
+    // Copie locale d'abord (affichage immédiat, hors-ligne), puis la base.
+    setExtraListName(readCachedExtraListName());
+    void fetchExtraListName().then(setExtraListName);
   }, []);
+
+  async function commitNameDraft() {
+    if (nameDraft === null) return;
+    if (cancelNameEdit.current) {
+      cancelNameEdit.current = false;
+      return;
+    }
+    const next = nameDraft.trim().slice(0, EXTRA_LIST_NAME_MAX_LENGTH);
+    setNameDraft(null);
+    // Vide ou inchangé : on garde l'ancien nom, rien à enregistrer.
+    if (!next || next === extraListName) return;
+    const previous = extraListName;
+    setExtraListName(next);
+    try {
+      await saveExtraListName(next);
+    } catch (err) {
+      setExtraListName(previous);
+      toast(err instanceof Error ? err.message : "Renommage impossible.", "error");
+    }
+  }
 
   function applyDuration(nextAmount: number, nextUnit: DurationUnit) {
     const period = periodFromDuration(nextAmount, nextUnit);
@@ -226,9 +267,10 @@ export function ShoppingListScreen() {
     setStatus({ scope: "add", message: null, error: null });
     try {
       await addExtraItem(trimmed, addQuantity, addUnit);
-      setStatus({ scope: "add", message: `« ${trimmed} » ajouté aux courses supplémentaires.`, error: null });
+      setStatus({ scope: "add", message: `« ${trimmed} » ajouté à « ${extraListName} ».`, error: null });
       setAddName("");
       setAddQuantity(1);
+      setAddUnit(DEFAULT_UNIT);
     } catch (err) {
       setStatus({
         scope: "add",
@@ -301,16 +343,46 @@ export function ShoppingListScreen() {
           Depuis le planning
           {dishesItems.length > 0 ? <span className="segment-count">{dishesItems.length}</span> : null}
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === "extra"}
-          className={`segment ${activeTab === "extra" ? "active" : ""}`}
-          onClick={() => setActiveTab("extra")}
-        >
-          Courses supplémentaires
-          {extraItems.length > 0 ? <span className="segment-count">{extraItems.length}</span> : null}
-        </button>
+        {nameDraft !== null ? (
+          <div className="segment active segment-editing">
+            <input
+              className="segment-input"
+              aria-label="Nouveau nom de la liste"
+              autoFocus
+              maxLength={EXTRA_LIST_NAME_MAX_LENGTH}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onFocus={(e) => e.target.select()}
+              onBlur={() => void commitNameDraft()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+                if (e.key === "Escape") {
+                  cancelNameEdit.current = true;
+                  setNameDraft(null);
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "extra"}
+            className={`segment ${activeTab === "extra" ? "active" : ""}`}
+            title={activeTab === "extra" ? "Cliquer pour renommer" : undefined}
+            onClick={() => {
+              if (activeTab !== "extra") return setActiveTab("extra");
+              cancelNameEdit.current = false;
+              setNameDraft(extraListName);
+            }}
+          >
+            <span className="segment-label">{extraListName}</span>
+            {activeTab === "extra" ? (
+              <Icon name="edit" size={14} className="segment-edit-icon" />
+            ) : null}
+            {extraItems.length > 0 ? <span className="segment-count">{extraItems.length}</span> : null}
+          </button>
+        )}
       </div>
 
       {activeTab === "week" ? (

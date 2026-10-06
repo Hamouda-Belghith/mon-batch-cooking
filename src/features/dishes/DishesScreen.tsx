@@ -8,7 +8,7 @@ import { useConfirm, useToast } from "@/components/ui/Feedback";
 import { formatQuantity } from "@/lib/date";
 import { deleteDish, fetchDishes } from "./api";
 import { DishFormModal } from "./DishFormModal";
-import type { Dish } from "./types";
+import { DISH_CATEGORY_LABELS, type Dish } from "./types";
 
 function NutritionFacts({ dish }: { dish: Dish }) {
   if (dish.calories === null && dish.proteinG === null) return null;
@@ -151,6 +151,9 @@ export function DishesScreen() {
                     <span className="dish-row-desc">{dish.description}</span>
                   ) : null}
                   <span className="dish-row-meta">
+                    <span className="dish-categories">
+                      {dish.mealSlots.map((slot) => DISH_CATEGORY_LABELS[slot]).join(" · ")}
+                    </span>
                     <NutritionFacts dish={dish} />
                     <span className="dish-ingredients">
                       {dish.ingredients.length === 0

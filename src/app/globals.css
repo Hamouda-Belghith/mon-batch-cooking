@@ -1127,6 +1127,12 @@ code {
   white-space: nowrap;
 }
 
+.dish-categories {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--basil);
+}
+
 .dish-row-meta {
   display: flex;
   flex-direction: column;
@@ -1177,6 +1183,34 @@ code {
   justify-content: center;
   border: 1px dashed var(--line-strong);
   color: var(--ink-soft);
+}
+
+.category-field {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.category-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.category-chip {
+  position: relative;
+  cursor: pointer;
+  user-select: none;
+}
+
+.category-chip:hover {
+  border-color: var(--basil);
+}
+
+.category-chip:has(input:focus-visible) {
+  outline: 2px solid var(--basil);
+  outline-offset: 2px;
 }
 
 .ingredients {
@@ -1257,6 +1291,7 @@ code {
 
 .segment {
   flex: 1;
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1282,6 +1317,42 @@ code {
   font-weight: 650;
   color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
+}
+
+/* Nom d'onglet personnalisable : peut être long, on le tronque. */
+.segment-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.segment-edit-icon {
+  flex-shrink: 0;
+  color: var(--ink-soft);
+}
+
+.segment-editing {
+  padding: 0.25rem;
+}
+
+.segment-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--basil);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  text-align: center;
+}
+
+.segment-input:focus {
+  outline: 2px solid var(--basil-tint);
+  outline-offset: 0;
 }
 
 .panel {

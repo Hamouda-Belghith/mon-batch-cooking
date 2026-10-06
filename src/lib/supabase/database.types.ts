@@ -32,6 +32,7 @@ export interface Database {
           photo_url: string | null;
           calories: number | null;
           protein_g: number | null;
+          meal_slots: MealSlot[];
           created_at: string;
         };
         Insert: {
@@ -41,6 +42,7 @@ export interface Database {
           photo_url?: string | null;
           calories?: number | null;
           protein_g?: number | null;
+          meal_slots?: MealSlot[];
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["dishes"]["Insert"]>;
@@ -185,6 +187,19 @@ export interface Database {
           special?: string | null;
         };
         Update: Partial<Database["public"]["Tables"]["saved_week_entries"]["Insert"]>;
+      };
+      user_settings: {
+        Row: {
+          user_id: string;
+          extra_list_name: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          extra_list_name: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["user_settings"]["Insert"]>;
       };
     };
   };

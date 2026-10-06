@@ -6,7 +6,14 @@ import { Modal } from "@/components/ui/Modal";
 import { Icon } from "@/components/ui/Icon";
 import { Field, TextareaField } from "@/components/ui/Field";
 import { fetchIngredients, saveDish } from "./api";
-import type { Dish, DishIngredient } from "./types";
+import { MEAL_SLOTS } from "@/features/cycles/types";
+import type { MealSlot } from "@/lib/supabase/database.types";
+import {
+  DEFAULT_DISH_MEAL_SLOTS,
+  DISH_CATEGORY_LABELS,
+  type Dish,
+  type DishIngredient,
+} from "./types";
 
 const UNITS = [
   "g",
@@ -42,6 +49,7 @@ function EmptyIngredientRow(): DishIngredient {
 export function DishFormModal({
   dish,
   initialName = "",
+  initialMealSlots = DEFAULT_DISH_MEAL_SLOTS,
   onClose,
   onSaved,
   onDelete,
@@ -50,6 +58,8 @@ export function DishFormModal({
   dish: Dish | null;
   /** Nom prérempli pour un nouveau plat (ex. texte déjà tapé dans une recherche). */
   initialName?: string;
+  /** Catégories précochées pour un nouveau plat (ex. le repas de la case du planning). */
+  initialMealSlots?: MealSlot[];
   onClose: () => void;
   onSaved: (dishId: string) => void | Promise<void>;
   /** Affiche « Supprimer le plat » (modification depuis l'écran Plats). */
@@ -57,6 +67,7 @@ export function DishFormModal({
 }) {
   const [name, setName] = useState(dish?.name ?? initialName);
   const [description, setDescription] = useState(dish?.description ?? "");
+  const [mealSlots, setMealSlots] = useState<MealSlot[]>(dish?.mealSlots ?? initialMealSlots);
   const [calories, setCalories] = useState(
     dish?.calories == null ? "" : String(dish.calories)
   );
@@ -101,7 +112,7 @@ export function DishFormModal({
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim() || mealSlots.length === 0) return;
     setSaving(true);
     setFormError(null);
     try {
@@ -109,6 +120,7 @@ export function DishFormModal({
         id: draftId.current,
         name,
         description,
+        mealSlots,
         calories: parseOptionalAmount(calories, 0),
         proteinG: parseOptionalAmount(proteinG, 1),
         ingredients: ingredients.filter((i) => i.ingredientName.trim() !== ""),
@@ -123,6 +135,12 @@ export function DishFormModal({
     }
     setSaving(false);
     await onSaved(draftId.current);
+  }
+
+  function toggleMealSlot(slot: MealSlot, checked: boolean) {
+    setMealSlots((prev) =>
+      MEAL_SLOTS.filter((s) => (s === slot ? checked : prev.includes(s)))
+    );
   }
 
   function updateIngredient(idx: number, patch: Partial<DishIngredient>) {
@@ -149,6 +167,32 @@ export function DishFormModal({
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Ex : la recette de grand-mère, 20 min de cuisson…"
         />
+
+        <fieldset className="field category-field">
+          <legend className="field-label">Catégories</legend>
+          <div className="category-options">
+            {MEAL_SLOTS.map((slot) => {
+              const checked = mealSlots.includes(slot);
+              return (
+                <label key={slot} className={`chip category-chip ${checked ? "chip-basil" : ""}`}>
+                  <input
+                    type="checkbox"
+                    className="visually-hidden"
+                    checked={checked}
+                    onChange={(e) => toggleMealSlot(slot, e.target.checked)}
+                  />
+                  {checked ? <Icon name="check" size={14} /> : null}
+                  {DISH_CATEGORY_LABELS[slot]}
+                </label>
+              );
+            })}
+          </div>
+          <p className="field-hint">
+            {mealSlots.length === 0
+              ? "Choisis au moins une catégorie."
+              : "Le planning ne propose ce plat que pour ces repas."}
+          </p>
+        </fieldset>
 
         <div className="form-grid-2">
           <Field
@@ -299,7 +343,7 @@ export function DishFormModal({
           <Button variant="ghost" className="cancel-action" onClick={onClose}>
             Annuler
           </Button>
-          <Button type="submit" disabled={saving || !name.trim()}>
+          <Button type="submit" disabled={saving || !name.trim() || mealSlots.length === 0}>
             {saving ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </div>
