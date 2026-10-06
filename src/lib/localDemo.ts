@@ -46,6 +46,8 @@ interface DemoMealCycle {
   name: string;
   durationDays: number;
   startDate: string;
+  // Absent des états sauvegardés avant la vue Mois (voir 0016).
+  weekColors?: number[] | null;
   createdAt: string;
 }
 
@@ -261,6 +263,7 @@ export async function fetchDemoRepeatPattern(): Promise<MealCycle | null> {
     name: cycle.name,
     durationDays: cycle.durationDays,
     startDate: cycle.startDate,
+    weekColors: cycle.weekColors ?? null,
     entries: state.mealCycleEntries
       .filter((entry) => entry.mealCycleId === cycle.id)
       .map((entry) => ({
@@ -288,11 +291,14 @@ export async function upsertDemoRepeatPattern(params: {
   id?: string;
   startDate: string;
   durationDays: number;
+  weekColors?: number[] | null;
   entries: MealCycleEntry[];
 }): Promise<MealCycle | null> {
   const state = loadState();
   // Un seul motif en démo.
   const existingId = state.mealCycles[0]?.id;
+  const weekColors =
+    params.weekColors === undefined ? state.mealCycles[0]?.weekColors ?? null : params.weekColors;
   const cycleId = params.id ?? existingId ?? crypto.randomUUID();
 
   state.mealCycles = [
@@ -301,6 +307,7 @@ export async function upsertDemoRepeatPattern(params: {
       name: "Répétition",
       durationDays: params.durationDays,
       startDate: params.startDate,
+      weekColors,
       createdAt: now(),
     },
   ];
@@ -320,6 +327,39 @@ export async function upsertDemoRepeatPattern(params: {
 
   saveState(state);
   return fetchDemoRepeatPattern();
+}
+
+/** Remplace tous les repas de la période par `rows` (overrides, sans lien au motif). */
+export async function replaceDemoMealsInRange(
+  periodStart: string,
+  periodEnd: string,
+  rows: { date: string; mealSlot: MealSlot; dishId: string | null; special: SpecialMeal | null }[]
+): Promise<void> {
+  const state = loadState();
+  state.plannedMeals = state.plannedMeals.filter(
+    (meal) => meal.date < periodStart || meal.date > periodEnd
+  );
+  for (const row of rows) {
+    state.plannedMeals.push({
+      id: crypto.randomUUID(),
+      date: row.date,
+      mealSlot: row.mealSlot,
+      dishId: row.dishId,
+      special: row.special,
+      mealCycleId: null,
+      createdAt: now(),
+    });
+  }
+  saveState(state);
+}
+
+/** Retire les repas issus du motif à partir de `fromDate` (les overrides restent). */
+export async function deleteDemoLinkedMealsFrom(cycleId: string, fromDate: string): Promise<void> {
+  const state = loadState();
+  state.plannedMeals = state.plannedMeals.filter(
+    (meal) => !(meal.mealCycleId === cycleId && meal.date >= fromDate)
+  );
+  saveState(state);
 }
 
 export async function updateDemoPatternEntryAndFuture(params: {
@@ -578,7 +618,9 @@ export async function applyDemoCycleToRange(
   const endDate = new Date(`${periodEnd}T00:00:00`);
 
   const msPerDay = 24 * 60 * 60 * 1000;
-  let cursor = new Date(startDate);
+  // Jamais avant le début du motif : une rotation (re)démarrée la
+  // semaine prochaine ne doit pas compléter la semaine en cours ni le passé.
+  let cursor = new Date(Math.max(startDate.getTime(), cycleStart.getTime()));
   while (cursor <= endDate) {
     const diffDays = Math.round((cursor.getTime() - cycleStart.getTime()) / msPerDay);
     const cycleOffset = ((diffDays % cycle.durationDays) + cycle.durationDays) % cycle.durationDays;

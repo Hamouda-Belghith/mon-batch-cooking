@@ -8,6 +8,8 @@ import {
   clearDemoPlannedMeal,
   clearAllDemoPlannedMeals,
   applyDemoCycleToRange,
+  deleteDemoLinkedMealsFrom,
+  replaceDemoMealsInRange,
   isDemoMode,
 } from "@/lib/localDemo";
 import { addDays, parseISODate, toISODate } from "@/lib/date";
@@ -209,6 +211,93 @@ export async function clearPlannedMeal(
   }
 }
 
+/** Une case à écrire telle quelle (dish et special null = case vidée). */
+export interface MealRow {
+  date: string;
+  mealSlot: MealSlot;
+  dishId: string | null;
+  special: SpecialMeal | null;
+}
+
+/**
+ * Remplace tous les repas de [periodStart, periodEnd] par `rows`, en
+ * deux requêtes. Les lignes écrites sont des overrides (aucun lien au
+ * motif de répétition).
+ */
+export async function replaceMealsInRange(
+  periodStart: string,
+  periodEnd: string,
+  rows: MealRow[]
+): Promise<void> {
+  if (isDemoMode()) {
+    await replaceDemoMealsInRange(periodStart, periodEnd, rows);
+    return;
+  }
+
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  const userId = await getCurrentUserId();
+  if (!userId) return;
+
+  const { error: delError } = (await supabase
+    .from("planned_meals")
+    .delete()
+    .eq("user_id", userId)
+    .gte("date", periodStart)
+    .lte("date", periodEnd)) as MutateResult;
+  if (delError) {
+    console.warn("Impossible de vider la semaine", delError);
+    throw new Error("Mise à jour de la semaine impossible");
+  }
+
+  if (rows.length === 0) return;
+  const { error } = (await supabase.from("planned_meals").insert(
+    rows.map((r) => ({
+      user_id: userId,
+      date: r.date,
+      meal_slot: r.mealSlot,
+      dish_id: r.dishId,
+      special: r.special,
+      meal_cycle_id: null,
+    })) as never
+  )) as MutateResult;
+  if (error) {
+    console.warn("Impossible d'écrire les repas de la semaine", error);
+    throw new Error("Mise à jour de la semaine impossible (la semaine a pu être vidée)");
+  }
+}
+
+/**
+ * Retire les repas posés par le motif `cycleId` à partir de `fromDate`
+ * (inclus), pour le réappliquer après une modification de la rotation.
+ * Les repas modifiés à la main (overrides, `meal_cycle_id` null) restent.
+ */
+export async function deleteLinkedMealsFrom(cycleId: string, fromDate: string): Promise<void> {
+  if (isDemoMode()) {
+    await deleteDemoLinkedMealsFrom(cycleId, fromDate);
+    return;
+  }
+
+  const supabase = getSupabase();
+  if (!supabase) return;
+
+  const userId = await getCurrentUserId();
+  if (!userId) return;
+
+  const { error } = (await supabase
+    .from("planned_meals")
+    .delete()
+    .eq("user_id", userId)
+    .eq("meal_cycle_id", cycleId)
+    .gte("date", fromDate)) as MutateResult;
+
+  if (error) {
+    console.warn("Impossible de retirer les repas de la rotation", error);
+    throw new Error("Mise à jour de la rotation impossible");
+  }
+}
+
 /** Supprime tous les repas planifiés (passés et futurs) de l'utilisateur. */
 export async function clearAllPlannedMeals(): Promise<void> {
   if (isDemoMode()) {
@@ -318,7 +407,9 @@ export async function applyCycleToRange(
   const updates: Array<{ id: string; dish_id: string }> = [];
 
   const msPerDay = 24 * 60 * 60 * 1000;
-  let cursor = new Date(startDate);
+  // Jamais avant le début du motif : une rotation (re)démarrée la
+  // semaine prochaine ne doit pas compléter la semaine en cours ni le passé.
+  let cursor = new Date(Math.max(startDate.getTime(), cycleStart.getTime()));
 
   while (cursor <= endDate) {
     const diffDays = Math.round(

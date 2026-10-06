@@ -23,6 +23,13 @@
   --radish: #b42318;
   --radish-tint: #fbe8e6;
 
+  /* Couleurs des semaines de rotation (vue Mois), voir rotation.ts. */
+  --wk-0: #2f7d5b;
+  --wk-1: #c98a12;
+  --wk-2: #c4533a;
+  --wk-3: #7d56a3;
+  --wk-4: #2f72b5;
+  --wk-5: #74832a;
   --radius-lg: 18px;
   --radius: 12px;
   --radius-sm: 8px;
@@ -2197,5 +2204,290 @@ body.meal-dragging * {
 
   .toast-region {
     bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 0.75rem);
+  }
+}
+
+
+/* ---------- Planning : onglets Semaines / Mois ---------- */
+
+.planning-tabs {
+  align-self: flex-start;
+  min-width: 15rem;
+}
+
+a.segment {
+  text-decoration: none;
+}
+
+/* ---------- Vue Mois ---------- */
+
+.chip-xs {
+  min-height: 1.5rem;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.rot-swatch {
+  flex-shrink: 0;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: var(--wk, var(--line-strong));
+}
+
+.rot-chip {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--wk) 16%, var(--surface));
+  color: var(--ink);
+}
+
+.chip-modified {
+  border-color: transparent;
+  background: var(--mustard-tint);
+  color: #6b4d07;
+}
+
+.rot-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.rot-panel .panel-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+}
+
+.rot-freq {
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: var(--basil);
+}
+
+.rot-panel > .field-hint {
+  margin: 0.35rem 0 0.85rem;
+}
+
+.rot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rot-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--wk, var(--line-strong));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--wk, transparent) 7%, var(--surface));
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.rot-card-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  width: 100%;
+  height: 100%;
+  min-height: 7.5rem;
+  padding: 0.6rem 0.7rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+}
+
+.rot-card-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 700;
+}
+
+.rot-card-date,
+.rot-card-count {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.rot-card-dishes {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  font-size: 0.875rem;
+  line-height: 1.3;
+  flex: 1;
+}
+
+.rot-add {
+  border-style: dashed;
+  border-top-width: 1px;
+  border-top-style: dashed;
+  background: transparent;
+}
+
+.rot-add .rot-card-main {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--basil);
+}
+
+.rot-add-title {
+  font-weight: 650;
+}
+
+.month-weeks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.month-week {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.25rem;
+  padding-right: 0.25rem;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.month-week-colored {
+  border-left-color: var(--wk);
+  background: color-mix(in srgb, var(--wk) 6%, var(--surface));
+}
+
+.month-week-current {
+  box-shadow: 0 0 0 1px var(--mustard);
+}
+
+.month-week-past {
+  opacity: 0.75;
+}
+
+.month-week-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+}
+
+.month-week-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+}
+
+.month-week-dates {
+  font-weight: 700;
+}
+
+.month-week-dishes {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.month-week-count {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.month-past-title {
+  margin-top: 0.75rem;
+}
+
+.saved-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.saved-chips > li {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.pick-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pick-group-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+/* Glisser-déposer de la vue Mois. */
+.dnd-source {
+  opacity: 0.45;
+}
+
+.dnd-over {
+  outline: 2px dashed var(--basil);
+  outline-offset: 2px;
+  background: var(--basil-tint);
+}
+
+.dnd-pickable {
+  outline: 2px solid var(--basil-tint);
+  outline-offset: 1px;
+  cursor: pointer;
+}
+
+.drag-ghost-action {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  color: var(--basil);
+}
+
+@media (max-width: 640px) {
+  .planning-tabs {
+    align-self: stretch;
+  }
+
+  .month-week-count {
+    display: none;
   }
 }

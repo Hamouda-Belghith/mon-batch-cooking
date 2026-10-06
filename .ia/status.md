@@ -3,6 +3,23 @@
 Date: 2026-10-06
 
 Résumé:
+- **Vue « Mois » du planning** (2026-10-06, `/mois`, onglets
+  « Semaines | Mois » en haut du Planning ; Semaines reste la vue par
+  défaut). Rotation (le motif de répétition) affichée en cartes
+  colorées « Semaine 1…N », dans l'ordre où elles reviennent dès la
+  semaine prochaine : glisser pour réordonner, « Ajouter une semaine »
+  (ou glisser une semaine du calendrier / une semaine enregistrée
+  dessus) pour allonger la rotation, retirer pour la raccourcir. Les
+  changements s'appliquent dès la semaine prochaine, jamais à la semaine
+  en cours ; les repas modifiés à la main restent. Calendrier : 3
+  semaines passées + 9 à venir, couleur de la semaine de rotation
+  reconnue dans ses plats, badge « Modifiée » ; glisser une semaine à
+  venir sur une autre = échange ponctuel, une semaine passée ou
+  enregistrée = copie. Clic = ouvre la semaine dans la vue Semaines
+  (`/?semaine=AAAA-MM-JJ`). Tout est aussi faisable sans glisser (menu
+  « ⋯ »). Migration `0016_rotation_week_colors.sql` **appliquée**
+  (2026-10-06). Le motif ne remplit plus les dates antérieures à son
+  début. Voir `.ia/decisions.md`.
 - **Glisser-déposer dans le Planning** (2026-10-06) : faire glisser un
   repas sur une autre case échange les deux (case vide = déplacement).
   Souris : glisser directement ; téléphone : appui long puis glisser

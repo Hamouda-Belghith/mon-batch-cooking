@@ -42,6 +42,7 @@ interface CycleRow {
   name: string;
   duration_days: number;
   start_date: string;
+  week_colors?: number[] | null;
 }
 
 interface EntryRow {
@@ -58,7 +59,7 @@ function durationFromInterval(intervalWeeks: RepeatInterval): number {
   return Math.max(1, Math.floor(intervalWeeks)) * 7;
 }
 
-function dayOffsetForDate(
+export function dayOffsetForDate(
   dateISO: string,
   patternStartISO: string,
   durationDays: number
@@ -71,7 +72,7 @@ function dayOffsetForDate(
   return ((diffDays % durationDays) + durationDays) % durationDays;
 }
 
-async function fetchSinglePattern(): Promise<MealCycle | null> {
+export async function fetchSinglePattern(): Promise<MealCycle | null> {
   if (isDemoMode()) {
     return fetchDemoRepeatPattern();
   }
@@ -84,7 +85,7 @@ async function fetchSinglePattern(): Promise<MealCycle | null> {
 
   const { data: cycles, error } = (await supabase
     .from("meal_cycles")
-    .select("id, name, duration_days, start_date")
+    .select("id, name, duration_days, start_date, week_colors")
     .eq("user_id", userId)
     .limit(1)) as {
     data: CycleRow[] | null;
@@ -115,6 +116,7 @@ async function fetchSinglePattern(): Promise<MealCycle | null> {
     name: cycle.name,
     durationDays: cycle.duration_days,
     startDate: cycle.start_date,
+    weekColors: cycle.week_colors ?? null,
     entries: entries.map((e) => ({
       dayOffset: e.day_offset,
       mealSlot: e.meal_slot,
@@ -169,10 +171,12 @@ async function snapshotEntries(
     }));
 }
 
-async function upsertPattern(params: {
+export async function upsertPattern(params: {
   id?: string;
   startDate: string;
   durationDays: number;
+  /** undefined = ne change pas les couleurs ; null = couleurs par défaut. */
+  weekColors?: number[] | null;
   entries: MealCycleEntry[];
 }): Promise<MealCycle | null> {
   if (isDemoMode()) {
@@ -194,6 +198,7 @@ async function upsertPattern(params: {
     duration_days: params.durationDays,
     start_date: params.startDate,
   };
+  if (params.weekColors !== undefined) payload.week_colors = params.weekColors;
   const cycleId = params.id ?? existing?.id;
   if (cycleId) {
     payload.id = cycleId;
@@ -202,7 +207,7 @@ async function upsertPattern(params: {
   const { data: savedRows, error: cycleError } = (await supabase
     .from("meal_cycles")
     .upsert(payload as never, { onConflict: "user_id" } as never)
-    .select("id, name, duration_days, start_date")) as {
+    .select("id, name, duration_days, start_date, week_colors")) as {
     data: CycleRow[] | null;
     error: PostgrestError | null;
   };
@@ -223,27 +228,30 @@ async function upsertPattern(params: {
     throw new Error("Impossible d'enregistrer la répétition");
   }
 
-  for (const entry of params.entries) {
-    if (entry.dayOffset < 0 || entry.dayOffset >= params.durationDays) continue;
-    if (!entry.dishId) continue;
-
+  // Une seule requête pour toutes les entrées (une rotation de 3
+  // semaines en compte facilement une trentaine).
+  const rows = params.entries
+    .filter((e) => e.dayOffset >= 0 && e.dayOffset < params.durationDays && e.dishId)
+    .map((e) => ({
+      meal_cycle_id: savedId,
+      day_offset: e.dayOffset,
+      meal_slot: e.mealSlot,
+      dish_id: e.dishId,
+    }));
+  if (rows.length > 0) {
     const { error: insertError } = (await supabase
       .from("meal_cycle_entries")
-      .insert({
-        meal_cycle_id: savedId,
-        day_offset: entry.dayOffset,
-        meal_slot: entry.mealSlot,
-        dish_id: entry.dishId,
-      } as never)) as MutateResult;
+      .insert(rows as never)) as MutateResult;
     if (insertError) {
-      console.warn("Impossible d'ajouter une entrée au motif", insertError);
+      console.warn("Impossible d'ajouter les entrées du motif", insertError);
+      throw new Error("Impossible d'enregistrer la répétition");
     }
   }
 
   return fetchSinglePattern();
 }
 
-async function deletePattern(): Promise<void> {
+export async function deletePattern(): Promise<void> {
   if (isDemoMode()) {
     await clearDemoRepeatPattern();
     return;
@@ -266,7 +274,7 @@ async function deletePattern(): Promise<void> {
   }
 }
 
-async function applyForward(
+export async function applyForward(
   patternId: string,
   fromISO: string,
   overwrite = false
@@ -353,6 +361,7 @@ export async function setRepeatInterval(
     id: existing?.id,
     startDate: weekStartISO,
     durationDays,
+    weekColors: null,
     entries,
   });
 

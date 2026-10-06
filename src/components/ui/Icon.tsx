@@ -20,6 +20,7 @@ const PATHS = {
   camera: "M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Zm8 9a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z",
   check: "M5 12.5l4.5 4.5L19 7",
   edit: "M4 20h4L19 9l-4-4L4 16v4Zm9-13 4 4",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -8,8 +8,8 @@ import {
 } from "@/lib/localDemo";
 import { addDays, parseISODate, toISODate } from "@/lib/date";
 import type { MealSlot } from "@/lib/supabase/database.types";
-import { fetchPlannedMeals } from "./api";
-import { clearWeek, setMealWithScope } from "./repeat";
+import { fetchPlannedMeals, replaceMealsInRange, type MealRow } from "./api";
+import { dayOffsetForDate, fetchSinglePattern } from "./repeat";
 import type { SavedWeek, SavedWeekEntry, SpecialMeal } from "./types";
 
 type MutateResult = { error: PostgrestError | null };
@@ -64,7 +64,7 @@ export async function fetchSavedWeeks(): Promise<SavedWeek[]> {
 }
 
 /** Repas de la semaine [weekStartISO, +6 jours] sous forme d'entrées de semaine enregistrée. */
-async function snapshotWeek(weekStartISO: string): Promise<SavedWeekEntry[]> {
+export async function snapshotWeek(weekStartISO: string): Promise<SavedWeekEntry[]> {
   const start = parseISODate(weekStartISO);
   const meals = await fetchPlannedMeals(weekStartISO, toISODate(addDays(start, 6)));
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -162,11 +162,40 @@ export async function deleteSavedWeek(id: string): Promise<void> {
  * semaines ne sont pas touchés.
  */
 export async function applySavedWeek(week: SavedWeek, weekStartISO: string): Promise<void> {
-  const start = parseISODate(weekStartISO);
-  await clearWeek(weekStartISO, toISODate(addDays(start, 6)));
+  await replaceWeek(weekStartISO, week.entries);
+}
 
-  for (const entry of week.entries) {
-    const date = toISODate(addDays(start, entry.dayOffset));
-    await setMealWithScope(date, entry.mealSlot, entry.dishId, "this_week", entry.special);
+/**
+ * Remplace la semaine [weekStartISO, +6 jours] par `entries`, en
+ * overrides « cette semaine seulement ». Si une répétition est active,
+ * les cases qu'elle remplirait et que `entries` laisse vides sont
+ * marquées vidées : sinon le motif les remplirait au prochain affichage.
+ */
+export async function replaceWeek(weekStartISO: string, entries: SavedWeekEntry[]): Promise<void> {
+  const start = parseISODate(weekStartISO);
+  const rows: MealRow[] = entries
+    .filter((e) => e.dishId || e.special)
+    .map((e) => ({
+      date: toISODate(addDays(start, e.dayOffset)),
+      mealSlot: e.mealSlot,
+      dishId: e.special ? null : e.dishId,
+      special: e.special,
+    }));
+
+  const pattern = await fetchSinglePattern();
+  if (pattern) {
+    const taken = new Set(rows.map((r) => `${r.date}|${r.mealSlot}`));
+    const byOffset = new Set(pattern.entries.map((e) => `${e.dayOffset}|${e.mealSlot}`));
+    for (let d = 0; d < 7; d++) {
+      const date = toISODate(addDays(start, d));
+      const offset = dayOffsetForDate(date, pattern.startDate, pattern.durationDays);
+      for (const key of byOffset) {
+        const [off, slot] = key.split("|");
+        if (Number(off) !== offset || taken.has(`${date}|${slot}`)) continue;
+        rows.push({ date, mealSlot: slot as MealSlot, dishId: null, special: null });
+      }
+    }
   }
+
+  await replaceMealsInRange(weekStartISO, toISODate(addDays(start, 6)), rows);
 }

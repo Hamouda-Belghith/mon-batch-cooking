@@ -11,6 +11,11 @@ export interface MealCycle {
   name: string;
   durationDays: number;
   startDate: string;
+  /**
+   * Couleur (indice de palette) de chaque semaine de la rotation, depuis
+   * `startDate`. Null = couleurs par défaut 0, 1, 2… (voir 0016).
+   */
+  weekColors?: number[] | null;
   entries: MealCycleEntry[];
 }
 

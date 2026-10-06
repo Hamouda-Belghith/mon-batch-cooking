@@ -6,6 +6,38 @@ haut du fichier (ordre antéchronologique).
 
 ---
 
+## 2026-10-06 — Vue Mois : la rotation comme liste de semaines
+
+**Contexte** : la répétition « toutes les N semaines » est en fait une
+rotation de N semaines (A, B, C, A…). Demande : la voir sur plusieurs
+semaines avec un code couleur, la réordonner et changer sa longueur
+par glisser-déposer, échanger ponctuellement deux semaines, réutiliser
+une semaine réussie (passée ou enregistrée).
+
+**Décision** :
+- Pas de nouveau modèle : la rotation reste `meal_cycles` +
+  `meal_cycle_entries` (`duration_days` = 7 × N). Toute modification
+  réenregistre le motif avec `start_date` = semaine prochaine et ses
+  semaines dans l'ordre affiché, puis supprime les repas liés au motif
+  à partir de cette date et le réapplique. Les overrides restent. La
+  semaine en cours n'est jamais modifiée (déjà entamée).
+- `meal_cycles.week_colors smallint[]` (0016) : couleur stable par
+  semaine de rotation quand on la déplace.
+- Couleur d'une semaine du calendrier = semaine de rotation la plus
+  proche de ses plats (≥ 50 % en commun), pas sa position : reste juste
+  pour les semaines passées, échangées ou antérieures à un réordonnancement.
+- `applyCycleToRange` ne remplit plus avant `start_date` (sinon une
+  rotation redémarrée la semaine prochaine complétait la semaine en cours).
+- Glisser-déposer générique `src/lib/useDragDrop.ts` (Pointer Events),
+  partagé avec le Planning ; chaque action existe aussi dans un menu.
+- Remplacer une semaine (copie, échange, semaine enregistrée) se fait
+  en deux requêtes (`replaceMealsInRange`) au lieu d'une par case.
+
+**Alternatives écartées** : plusieurs rotations nommées (contrainte
+« un seul motif ») ; colorer par position (faux après un réordonnancement).
+
+---
+
 ## 2026-10-06 — Catégories de plats = créneaux du planning ; nom de « Courses supplémentaires » par utilisateur
 
 **Contexte** : le choix d'un plat pour une case du planning proposait

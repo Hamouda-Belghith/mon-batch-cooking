@@ -19,6 +19,7 @@ import type { MealSlot } from "@/lib/supabase/database.types";
 import { DISH_CATEGORY_LABELS, type Dish } from "@/features/dishes/types";
 import { DishFormModal } from "@/features/dishes/DishFormModal";
 import { cellKey, useMealDrag, type CellRef } from "./useMealDrag";
+import { PlanningTabs } from "./PlanningTabs";
 import {
   fetchDishesForCycles,
   MEAL_SLOTS,
@@ -224,6 +225,15 @@ export function PlanningScreen() {
       // Non bloquant : une notification manquée n'empêche pas d'utiliser le planning.
     }
   }
+
+  // Arrivée depuis la vue Mois (`/?semaine=AAAA-MM-JJ`) : ouvre cette
+  // semaine, puis retire le paramètre de l'adresse.
+  useEffect(() => {
+    const param = new URLSearchParams(window.location.search).get("semaine");
+    if (!param || !/^\d{4}-\d{2}-\d{2}$/.test(param)) return;
+    setWeekStart(startOfWeek(parseISODate(param)));
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
 
   useEffect(() => {
     setLoadError(null);
@@ -603,6 +613,7 @@ export function PlanningScreen() {
 
   return (
     <div className="screen">
+      <PlanningTabs active="weeks" />
       {showNextWeekBanner && nextWeekEmpty ? (
         <div className="notice notice-warn">
           <span>
