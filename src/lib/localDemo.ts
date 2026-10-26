@@ -7,6 +7,7 @@ import type {
   SavedWeekEntry,
   SpecialMeal,
 } from "@/features/planning/types";
+import type { NullableMacros } from "@/features/nutrition/types";
 import { getDb, type LocalShoppingListItem } from "./db/dexie";
 import { DEMO_USER_ID, getSupabase } from "./supabase/client";
 import { addDays, toISODate } from "./date";
@@ -28,6 +29,10 @@ interface DemoDish {
   // Absents des états sauvegardés avant l'ajout des apports : lus avec `?? null`.
   calories?: number | null;
   proteinG?: number | null;
+  // Absents des états sauvegardés avant 0017 (glucides, lipides, estimation).
+  carbsG?: number | null;
+  fatG?: number | null;
+  nutritionEstimated?: boolean;
   // Absent des états sauvegardés avant les catégories : lu via normalizeMealSlots.
   mealSlots?: MealSlot[];
   createdAt: string;
@@ -80,6 +85,8 @@ interface DemoState {
   savedWeeks: SavedWeek[];
   /** Nom personnalisé de « Courses supplémentaires » ; absent = nom par défaut. */
   extraListName?: string;
+  /** Objectifs nutritionnels du jour ; absent = aucun objectif. */
+  nutritionTargets?: NullableMacros | null;
 }
 
 function createState(): DemoState {
@@ -158,6 +165,9 @@ export async function fetchDemoDishes(): Promise<Dish[]> {
       photoUrl: dish.photoUrl,
       calories: dish.calories ?? null,
       proteinG: dish.proteinG ?? null,
+      carbsG: dish.carbsG ?? null,
+      fatG: dish.fatG ?? null,
+      nutritionEstimated: dish.nutritionEstimated ?? false,
       mealSlots: normalizeMealSlots(dish.mealSlots),
       ingredients: state.dishIngredients
         .filter((entry) => entry.dishId === dish.id)
@@ -191,6 +201,9 @@ export async function saveDemoDish(
     photoUrl: dish.photoUrl === undefined ? existingPhotoUrl : dish.photoUrl,
     calories: dish.calories,
     proteinG: dish.proteinG,
+    carbsG: dish.carbsG,
+    fatG: dish.fatG,
+    nutritionEstimated: dish.nutritionEstimated,
     mealSlots: normalizeMealSlots(dish.mealSlots),
     createdAt: now(),
   };
@@ -222,6 +235,22 @@ export async function saveDemoDish(
   return fetchDemoDishes().then((dishes) => dishes.find((d) => d.id === dishId) ?? null);
 }
 
+export async function saveDemoDishNutrition(
+  id: string,
+  values: NullableMacros,
+  estimated: boolean
+): Promise<void> {
+  const state = loadState();
+  const dish = state.dishes.find((row) => row.id === id);
+  if (!dish) return;
+  dish.calories = values.calories;
+  dish.proteinG = values.proteinG;
+  dish.carbsG = values.carbsG;
+  dish.fatG = values.fatG;
+  dish.nutritionEstimated = estimated;
+  saveState(state);
+}
+
 export async function deleteDemoDish(id: string): Promise<void> {
   const state = loadState();
   state.dishes = state.dishes.filter((dish) => dish.id !== id);
@@ -242,6 +271,9 @@ export async function fetchDemoDishesForCycles(): Promise<Dish[]> {
       photoUrl: null,
       calories: dish.calories ?? null,
       proteinG: dish.proteinG ?? null,
+      carbsG: dish.carbsG ?? null,
+      fatG: dish.fatG ?? null,
+      nutritionEstimated: dish.nutritionEstimated ?? false,
       mealSlots: normalizeMealSlots(dish.mealSlots),
       ingredients: [],
     }))
@@ -513,6 +545,9 @@ export async function fetchDemoPlannedMeals(
         dishName: dish?.name ?? null,
         dishCalories: dish?.calories ?? null,
         dishProteinG: dish?.proteinG ?? null,
+        dishCarbsG: dish?.carbsG ?? null,
+        dishFatG: dish?.fatG ?? null,
+        dishNutritionEstimated: dish?.nutritionEstimated ?? false,
         special: meal.special ?? null,
         mealCycleId: meal.mealCycleId,
       };
@@ -828,6 +863,16 @@ export async function fetchDemoExtraListName(): Promise<string | null> {
 export async function saveDemoExtraListName(name: string): Promise<void> {
   const state = loadState();
   state.extraListName = name;
+  saveState(state);
+}
+
+export async function fetchDemoNutritionTargets(): Promise<NullableMacros | null> {
+  return loadState().nutritionTargets ?? null;
+}
+
+export async function saveDemoNutritionTargets(targets: NullableMacros): Promise<void> {
+  const state = loadState();
+  state.nutritionTargets = targets;
   saveState(state);
 }
 

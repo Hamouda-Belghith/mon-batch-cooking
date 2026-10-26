@@ -45,9 +45,17 @@ accueillir d'autres foyers pour l'instant.
   supprimables ; indépendant de la répétition.
 - Associer une photo (optionnelle) à un plat, visible sur sa fiche
   (écran Plats) ; le Planning n'affiche que le nom du plat.
-- Renseigner (optionnellement) les calories et les protéines d'un plat,
-  pour une portion. Le Planning peut afficher, pour chaque jour, la somme
-  des calories et/ou des protéines des repas affichés.
+- Apports d'un plat pour une portion (calories, protéines, glucides,
+  lipides), **estimés automatiquement d'après son nom** (arabe tunisien,
+  arabizi ou français ; ~180 g de viande par déjeuner/dîner) et
+  modifiables à la main. Écran Plats : estimation en un clic de tous les
+  plats sans valeurs. Le Planning peut afficher, pour chaque jour, la
+  somme de chaque apport des repas affichés.
+- Objectifs du jour par compte (calories, protéines, glucides, lipides),
+  avec un calcul de départ à partir du poids, du nombre de séances et de
+  l'objectif (prise de muscle, maintien, perte). Le Planning signale les
+  jours sous l'objectif ; toucher un jour ouvre le détail de ses apports
+  face aux objectifs.
 - Associer une liste d'ingrédients à chaque plat. Les ingrédients sont
   saisis manuellement une fois par plat et réutilisés ensuite — pas
   d'intégration avec une API de supermarché.

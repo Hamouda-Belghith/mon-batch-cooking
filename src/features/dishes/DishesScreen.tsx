@@ -6,20 +6,35 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
 import { useConfirm, useToast } from "@/components/ui/Feedback";
 import { formatQuantity } from "@/lib/date";
-import { deleteDish, fetchDishes } from "./api";
+import { deleteDish, fetchDishes, saveDishNutrition } from "./api";
 import { DishFormModal } from "./DishFormModal";
 import { DISH_CATEGORY_LABELS, type Dish } from "./types";
+import { estimateDish } from "@/features/nutrition/estimate";
+import { MACROS, hasAnyMacro } from "@/features/nutrition/types";
 
 function NutritionFacts({ dish }: { dish: Dish }) {
-  if (dish.calories === null && dish.proteinG === null) return null;
+  if (!hasAnyMacro(dish)) return null;
   return (
     <span className="dish-facts">
-      {dish.calories !== null ? <span>{formatQuantity(dish.calories)} kcal</span> : null}
-      {dish.proteinG !== null ? (
-        <span>{formatQuantity(dish.proteinG)} g de protéines</span>
+      {dish.nutritionEstimated ? (
+        <span className="estimated-tag" title="Estimé automatiquement d'après le nom du plat">
+          ≈ estimé
+        </span>
       ) : null}
+      {MACROS.map(({ key, shortUnit }) =>
+        dish[key] !== null ? (
+          <span key={key}>
+            {formatQuantity(dish[key] as number)} {shortUnit}
+          </span>
+        ) : null
+      )}
     </span>
   );
+}
+
+/** Plats sans aucun apport renseigné : ceux que l'estimation en lot remplit. */
+function withoutNutrition(dishes: Dish[]): Dish[] {
+  return dishes.filter((dish) => !hasAnyMacro(dish));
 }
 
 export function DishesScreen() {
@@ -30,6 +45,7 @@ export function DishesScreen() {
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Dish | null>(null);
+  const [estimating, setEstimating] = useState(false);
 
   async function load() {
     setDishes(await fetchDishes());
@@ -68,6 +84,49 @@ export function DishesScreen() {
       toast(err instanceof Error ? err.message : "Suppression impossible", "error");
     }
   }
+
+  /**
+   * Estime d'après leur nom les apports des plats qui n'en ont aucun.
+   * Les valeurs restent modifiables plat par plat (marquées « estimé »).
+   */
+  async function handleEstimateAll() {
+    if (!dishes) return;
+    const targets = withoutNutrition(dishes);
+    if (targets.length === 0) return;
+    setEstimating(true);
+    let done = 0;
+    try {
+      // Par petits paquets : rapide sans envoyer 40 requêtes d'un coup.
+      for (let i = 0; i < targets.length; i += 6) {
+        await Promise.all(
+          targets.slice(i, i + 6).map(async (dish) => {
+            const { macros } = estimateDish({
+              name: dish.name,
+              description: dish.description,
+              mealSlots: dish.mealSlots,
+              ingredientNames: dish.ingredients.map((ing) => ing.ingredientName),
+            });
+            await saveDishNutrition(dish.id, macros, true);
+            done += 1;
+          })
+        );
+      }
+      toast(
+        `${done} plat${done > 1 ? "s" : ""} estimé${done > 1 ? "s" : ""}. ` +
+          "Ouvre un plat pour ajuster ses valeurs si besoin."
+      );
+    } catch (err) {
+      toast(
+        err instanceof Error ? err.message : "L'estimation des plats a échoué. Réessaie.",
+        "error"
+      );
+    } finally {
+      setEstimating(false);
+      await load();
+    }
+  }
+
+  const missingNutrition = dishes ? withoutNutrition(dishes).length : 0;
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredDishes =
@@ -110,6 +169,20 @@ export function DishesScreen() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+        </div>
+      ) : null}
+
+      {missingNutrition > 0 ? (
+        <div className="notice notice-info estimate-banner">
+          <span>
+            <Icon name="sparkle" size={18} />
+            {missingNutrition} plat{missingNutrition > 1 ? "s" : ""} sans calories ni
+            protéines. Estimation d&apos;après le nom (arabe, arabizi ou français), modifiable
+            ensuite.
+          </span>
+          <Button size="sm" onClick={() => void handleEstimateAll()} disabled={estimating}>
+            {estimating ? "Estimation…" : "Estimer automatiquement"}
+          </Button>
         </div>
       ) : null}
 

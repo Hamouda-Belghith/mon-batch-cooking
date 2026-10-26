@@ -38,7 +38,11 @@ import {
   type RepeatConfig,
   type RepeatInterval,
 } from "./repeat";
-import { sumNutrition } from "./nutrition";
+import { compareToTargets, sumNutrition, type TargetStatus } from "./nutrition";
+import { MACROS, type NullableMacros } from "@/features/nutrition/types";
+import { fetchNutritionTargets, readCachedTargets } from "@/features/nutrition/targets";
+import { TargetsModal } from "@/features/nutrition/TargetsModal";
+import { DayNutritionModal } from "@/features/nutrition/DayNutritionModal";
 import { applySavedWeek, deleteSavedWeek, fetchSavedWeeks, saveWeek } from "./savedWeeks";
 import {
   SPECIAL_MEAL_LABELS,
@@ -52,7 +56,12 @@ const DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 const DAY_LABELS_LONG = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
 /** Panneau d'options ouvert depuis la barre d'outils du planning. */
-type Panel = "repeat" | "saved" | "display" | "clear";
+type Panel = "repeat" | "saved" | "display" | "targets" | "clear";
+
+const TARGET_STATUS_LABELS: Record<Exclude<TargetStatus, "none">, string> = {
+  reached: "Objectif atteint",
+  under: "Sous l'objectif",
+};
 
 /**
  * Préférence d'affichage mémorisée sur cet appareil. Lue après le
@@ -152,6 +161,23 @@ export function PlanningScreen() {
   const [showSnack, setShowSnack] = usePersistedFlag("planning-show-snack", false);
   const [showCalories, setShowCalories] = usePersistedFlag("planning-show-calories", false);
   const [showProtein, setShowProtein] = usePersistedFlag("planning-show-protein", false);
+  const [showCarbs, setShowCarbs] = usePersistedFlag("planning-show-carbs", false);
+  const [showFat, setShowFat] = usePersistedFlag("planning-show-fat", false);
+
+  // Objectifs nutritionnels du compte (copie locale d'abord, puis la base).
+  const [targets, setTargets] = useState<NullableMacros>({
+    calories: null,
+    proteinG: null,
+    carbsG: null,
+    fatG: null,
+  });
+  /** Jour dont le détail des apports est ouvert. */
+  const [detailsDate, setDetailsDate] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTargets(readCachedTargets());
+    void fetchNutritionTargets().then(setTargets);
+  }, []);
 
   const [editingCell, setEditingCell] = useState<{
     date: string;
@@ -606,7 +632,21 @@ export function PlanningScreen() {
     (slot) =>
       (slot !== "breakfast" || showBreakfast) && (slot !== "snack" || showSnack)
   );
-  const totalsCount = Number(showCalories) + Number(showProtein);
+  const macroToggles = {
+    calories: showCalories,
+    proteinG: showProtein,
+    carbsG: showCarbs,
+    fatG: showFat,
+  };
+  const shownMacros = MACROS.filter(({ key }) => macroToggles[key]);
+  const totalsCount = shownMacros.length;
+
+  /** Repas comptés pour un jour : ceux des créneaux affichés, comme la ligne Total. */
+  function countedMeals(dateISO: string) {
+    return (meals ?? [])
+      .filter((m) => m.date === dateISO && visibleSlots.includes(m.mealSlot))
+      .sort((a, b) => MEAL_SLOTS.indexOf(a.mealSlot) - MEAL_SLOTS.indexOf(b.mealSlot));
+  }
 
   const showNextWeekBanner =
     nextWeekEmpty !== null && weekStartISO !== nextWeekEmpty.startISO;
@@ -711,6 +751,10 @@ export function PlanningScreen() {
           <Icon name="sliders" size={18} />
           Affichage
         </button>
+        <button type="button" className="tool" onClick={() => setPanel("targets")}>
+          <Icon name="target" size={18} />
+          Objectifs
+        </button>
         <button
           type="button"
           className="tool tool-danger"
@@ -766,9 +810,8 @@ export function PlanningScreen() {
             const bySlot = new Map(dayMeals.map((m) => [m.mealSlot, m]));
             // Seuls les créneaux affichés comptent : le total doit
             // correspondre à ce que l'on voit dans la colonne.
-            const totals = sumNutrition(
-              dayMeals.filter((m) => visibleSlots.includes(m.mealSlot))
-            );
+            const totals = sumNutrition(countedMeals(dateISO));
+            const comparison = compareToTargets(totals, targets);
 
             return (
               <section
@@ -776,12 +819,32 @@ export function PlanningScreen() {
                 className={`week-day-col ${isToday ? "today" : ""}`}
                 aria-label={formatDateLong(dateISO)}
               >
-                <div className="week-day-head">
+                <button
+                  type="button"
+                  className="week-day-head"
+                  onClick={() => setDetailsDate(dateISO)}
+                  aria-label={`Apports du ${formatDateLong(dateISO)}${
+                    comparison.status === "none"
+                      ? ""
+                      : ` : ${TARGET_STATUS_LABELS[comparison.status].toLowerCase()}`
+                  }`}
+                >
                   <span className="day-name">{DAY_LABELS[i]}</span>
                   <span className="day-name-long">{DAY_LABELS_LONG[i]}</span>
                   <span className="day-num">{date.getDate()}</span>
                   {isToday ? <span className="day-today">Aujourd&apos;hui</span> : null}
-                </div>
+                  {comparison.status !== "none" ? (
+                    <span
+                      className={`day-target day-target-${comparison.status}`}
+                      title={TARGET_STATUS_LABELS[comparison.status]}
+                    >
+                      <Icon name={comparison.status === "under" ? "target" : "check"} size={14} />
+                      <span className="day-target-label">
+                        {TARGET_STATUS_LABELS[comparison.status]}
+                      </span>
+                    </span>
+                  ) : null}
+                </button>
                 {visibleSlots.map((slot) => {
                   const meal = bySlot.get(slot);
                   const label = meal
@@ -834,31 +897,37 @@ export function PlanningScreen() {
                   );
                 })}
                 {totalsCount > 0 ? (
-                  <div className={`week-total-cell week-total-${totalsCount}`}>
+                  <button
+                    type="button"
+                    className={`week-total-cell week-total-${totalsCount}`}
+                    onClick={() => setDetailsDate(dateISO)}
+                    aria-label={`Détail des apports du ${formatDateLong(dateISO)}`}
+                  >
                     <span className="week-total-inline-label">Total</span>
-                    {showCalories ? (
-                      <span
-                        title={
-                          totals.caloriesIncomplete
-                            ? "Certains plats n'ont pas de calories renseignées (onglet Plats)."
-                            : undefined
-                        }
-                      >
-                        {formatTotal(totals.calories, totals.caloriesIncomplete, "kcal", 0)}
-                      </span>
-                    ) : null}
-                    {showProtein ? (
-                      <span
-                        title={
-                          totals.proteinIncomplete
-                            ? "Certains plats n'ont pas de protéines renseignées (onglet Plats)."
-                            : undefined
-                        }
-                      >
-                        {formatTotal(totals.proteinG, totals.proteinIncomplete, "g prot.", 1)}
-                      </span>
-                    ) : null}
-                  </div>
+                    {shownMacros.map((info) => {
+                      const under = comparison.under.includes(info.key);
+                      return (
+                        <span
+                          key={info.key}
+                          className={under ? "total-under" : undefined}
+                          title={
+                            under
+                              ? `Sous l'objectif (${formatQuantity(targets[info.key] as number)} ${info.unit}).`
+                              : totals.incomplete[info.key]
+                                ? `Certains plats n'ont pas de ${info.label.toLowerCase()} renseigné(e)s (onglet Plats).`
+                                : undefined
+                          }
+                        >
+                          {formatTotal(
+                            totals.totals[info.key],
+                            totals.incomplete[info.key],
+                            info.shortUnit,
+                            info.decimals
+                          )}
+                        </span>
+                      );
+                    })}
+                  </button>
                 ) : null}
               </section>
             );
@@ -1057,11 +1126,55 @@ export function PlanningScreen() {
               checked={showProtein}
               onChange={setShowProtein}
             />
+            <DisplayToggle
+              label="Glucides du jour"
+              description="Somme des repas affichés, pour une portion."
+              checked={showCarbs}
+              onChange={setShowCarbs}
+            />
+            <DisplayToggle
+              label="Lipides du jour"
+              description="Somme des repas affichés, pour une portion."
+              checked={showFat}
+              onChange={setShowFat}
+            />
           </div>
           <p className="field-hint" style={{ marginTop: "0.75rem" }}>
-            Mémorisé sur cet appareil.
+            Mémorisé sur cet appareil. Touche un jour (ou son total) pour voir le détail de
+            ses apports face à tes objectifs.
           </p>
         </Modal>
+      ) : null}
+
+      {panel === "targets" ? (
+        <TargetsModal
+          targets={targets}
+          onClose={() => setPanel(null)}
+          onSaved={(saved) => {
+            setTargets(saved);
+            setPanel(null);
+            toast(
+              MACROS.some(({ key }) => saved[key] !== null)
+                ? "Objectifs enregistrés."
+                : "Objectifs retirés."
+            );
+          }}
+        />
+      ) : null}
+
+      {detailsDate && panel !== "targets" ? (
+        <DayNutritionModal
+          dateISO={detailsDate}
+          meals={countedMeals(detailsDate)}
+          hiddenSlots={MEAL_SLOTS.filter(
+            (slot) =>
+              !visibleSlots.includes(slot) &&
+              (meals ?? []).some((m) => m.date === detailsDate && m.mealSlot === slot)
+          )}
+          targets={targets}
+          onEditTargets={() => setPanel("targets")}
+          onClose={() => setDetailsDate(null)}
+        />
       ) : null}
 
       {panel === "clear" ? (

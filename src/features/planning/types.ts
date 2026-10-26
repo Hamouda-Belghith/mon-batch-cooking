@@ -20,6 +20,10 @@ export interface PlannedMeal {
   dishName: string | null;
   dishCalories: number | null;
   dishProteinG: number | null;
+  dishCarbsG: number | null;
+  dishFatG: number | null;
+  /** Apports du plat estimés automatiquement (à vérifier), voir `Dish`. */
+  dishNutritionEstimated: boolean;
   special: SpecialMeal | null;
   mealCycleId: string | null;
 }

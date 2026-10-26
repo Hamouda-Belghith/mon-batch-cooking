@@ -901,6 +901,184 @@ body.meal-dragging * {
   display: none;
 }
 
+.week-total-3 {
+  height: 4.75rem;
+}
+
+.week-total-4 {
+  height: 6rem;
+}
+
+/* Le total et l'en-tête d'un jour ouvrent le détail de ses apports. */
+button.week-total-cell,
+button.week-day-head {
+  width: 100%;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.week-total-cell {
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+button.week-total-cell:hover {
+  background: var(--basil-tint);
+}
+
+button.week-day-head {
+  position: relative;
+  background: transparent;
+  border-radius: var(--radius-sm);
+}
+
+button.week-day-head:hover {
+  background: rgba(23, 32, 28, 0.05);
+}
+
+.total-under {
+  color: var(--radish);
+}
+
+/* Pastille « objectif » d'un jour : icône seule sur grand écran. */
+.day-target {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.day-target-under {
+  color: var(--radish);
+}
+
+.day-target-reached {
+  color: var(--basil);
+}
+
+.day-target-label {
+  display: none;
+}
+
+/* ---------- Apports : formulaire, plats, détail du jour ---------- */
+
+.nutrition-field {
+  margin: 0.75rem 0 1rem;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+/* Apports : champs courts, toujours deux par ligne (même sur téléphone). */
+.macro-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 0.75rem;
+}
+
+.macro-grid .field {
+  margin-bottom: 0.6rem;
+}
+
+.nutrition-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem 0.6rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.nutrition-note > svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--basil);
+}
+
+.nutrition-note .link-button {
+  text-align: left;
+}
+
+.nutrition-note > span {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.estimated-tag {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.estimate-banner > span {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 14rem;
+}
+
+.estimate-banner > span > svg {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+}
+
+.day-status {
+  justify-content: flex-start;
+  font-weight: 650;
+}
+
+.macro-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.macro-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.macro-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.macro-label {
+  font-weight: 650;
+}
+
+.macro-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.macro-status {
+  font-size: 0.8125rem;
+  color: var(--basil-deep);
+}
+
+.macro-under .macro-value,
+.macro-under .macro-status {
+  color: var(--radish);
+}
+
+.macro-under .progress > span {
+  background: var(--radish);
+}
+
 .legend {
   display: flex;
   align-items: center;
@@ -1213,7 +1391,8 @@ body.meal-dragging * {
 
 .dish-facts {
   display: flex;
-  gap: 0.75rem;
+  flex-wrap: wrap;
+  gap: 0 0.75rem;
   font-size: 0.8125rem;
   font-weight: 650;
   color: var(--basil-deep);
@@ -2489,5 +2668,50 @@ a.segment {
 
   .month-week-count {
     display: none;
+  }
+}
+
+/* ---------- Apports et objectifs : téléphone ---------- */
+@media (max-width: 720px) {
+  button.week-day-head {
+    border-radius: 0;
+  }
+
+  .day-target {
+    position: static;
+    padding: 0.05rem 0.5rem;
+    border-radius: 999px;
+  }
+
+  .day-today + .day-target {
+    margin-left: 0.25rem;
+  }
+
+  .day-target:not(.day-today + .day-target) {
+    margin-left: auto;
+  }
+
+  .day-target-under {
+    background: var(--radish-tint);
+  }
+
+  .day-target-reached {
+    background: var(--basil-tint);
+  }
+
+  .day-target-label {
+    display: inline;
+  }
+
+  button.week-total-cell {
+    height: auto;
+    flex-wrap: wrap;
+    row-gap: 0.15rem;
+    font-size: 0.875rem;
+  }
+
+  .week-total-3,
+  .week-total-4 {
+    height: auto;
   }
 }

@@ -6,6 +6,62 @@ haut du fichier (ordre antéchronologique).
 
 ---
 
+## 2026-10-26 — Apports estimés automatiquement d'après le nom du plat ; objectifs du jour
+
+**Contexte** : les calories/protéines des plats n'étaient jamais
+saisies (trop fastidieux). Demande : les estimer automatiquement, alors
+que les noms sont écrits en arabe tunisien (ou arabizi), ajouter
+glucides et lipides, et signaler les jours sous un objectif (prise de
+muscle : ~79 kg, 3 séances/semaine). Habitude du foyer : 150–200 g de
+viande (poulet, bœuf ou poisson) par déjeuner/dîner.
+
+**Décision** :
+- **Estimateur local, sans IA ni API** (`src/features/nutrition/estimate.ts`) :
+  dictionnaire de plats tunisiens et d'aliments courants avec leurs
+  variantes d'écriture (arabe, arabizi avec chiffres, français),
+  apports moyens par portion. Normalisation (diacritiques, أ/إ/آ, ة/ه,
+  ى/ي, ڨ/ق…), motifs arabes en sous-chaîne ou en mot entier avec
+  préfixes (و ف ب ل ك ال), motifs latins en début de mot. Un seul plat de
+  base + éléments ajoutés ; la viande est repérée dans le nom (sinon les
+  ingrédients) et comptée à part : 180 g au déjeuner/dîner, type par
+  défaut selon le plat (ملوخية → bœuf…) ou mi-poulet mi-bœuf. Résultat
+  arrondi et accompagné de son explication (« Couscous · agneau ≈ 180 g »).
+- **`dishes.nutrition_estimated`** (0017) : distingue une estimation (à
+  vérifier, affichée « ≈ estimé ») d'une saisie manuelle. Dans le
+  formulaire, les apports suivent l'estimation tant qu'on ne touche pas
+  un champ ; toucher un champ passe en saisie manuelle (bouton pour
+  revenir à l'estimation). Écran Plats : bouton « Estimer
+  automatiquement » pour les plats sans aucune valeur (mise à jour des
+  seules colonnes d'apports, `saveDishNutrition`).
+- **`dishes.carbs_g`, `dishes.fat_g`** (0017), nullables comme les autres.
+- **Objectifs dans `user_settings`** (`target_kcal`, `target_*_g`, 0017),
+  par compte (les deux utilisateurs n'ont pas les mêmes besoins), avec
+  copie locale pour un affichage immédiat. `extra_list_name` reçoit une
+  valeur par défaut pour pouvoir créer la ligne en enregistrant d'abord
+  des objectifs. Calcul de départ volontairement simple (poids, séances,
+  objectif ; sans taille ni âge), modifiable.
+- **Objectif = minimum** (prise de muscle) : un jour est « sous
+  l'objectif » si un apport suivi est en dessous. Mêmes repas que la
+  ligne Total (créneaux affichés), pour rester cohérent avec la décision
+  du 2026-09-20. Jour vide : pas de signalement. Pastille sur l'en-tête
+  du jour ; toucher l'en-tête ou le total ouvre le détail du jour.
+- **Code tolérant à une migration pas encore appliquée**
+  (`src/lib/supabase/schemaCompat.ts`) : lectures et enregistrement de
+  plat retentent sans les colonnes de 0017 (42703 / PGRST204). La base
+  n'était pas joignable depuis la session (pas de `.env`), le déploiement
+  ne devait pas casser le Planning en attendant. À retirer une fois 0017
+  appliquée.
+
+**Alternatives écartées** : appel à un LLM (Claude, Gemini…) depuis
+l'app — meilleur sur les noms inconnus, mais clé d'API, coût et
+dépendance réseau (budget 0 €) ; base nutritionnelle externe
+(Open Food Facts, CIQUAL) — ne connaît pas les plats tunisiens écrits en
+arabe et suppose des quantités par ingrédient (les quantités saisies
+sont pour la liste de courses, pas par portion) ; objectifs en
+`localStorage` — différents d'un appareil à l'autre.
+
+---
+
 ## 2026-10-06 — Vue Mois : la rotation comme liste de semaines
 
 **Contexte** : la répétition « toutes les N semaines » est en fait une

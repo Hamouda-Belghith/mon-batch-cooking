@@ -32,6 +32,9 @@ export interface Database {
           photo_url: string | null;
           calories: number | null;
           protein_g: number | null;
+          carbs_g: number | null;
+          fat_g: number | null;
+          nutrition_estimated: boolean;
           meal_slots: MealSlot[];
           created_at: string;
         };
@@ -42,6 +45,9 @@ export interface Database {
           photo_url?: string | null;
           calories?: number | null;
           protein_g?: number | null;
+          carbs_g?: number | null;
+          fat_g?: number | null;
+          nutrition_estimated?: boolean;
           meal_slots?: MealSlot[];
           created_at?: string;
         };
@@ -192,11 +198,19 @@ export interface Database {
         Row: {
           user_id: string;
           extra_list_name: string;
+          target_kcal: number | null;
+          target_protein_g: number | null;
+          target_carbs_g: number | null;
+          target_fat_g: number | null;
           updated_at: string;
         };
         Insert: {
           user_id: string;
-          extra_list_name: string;
+          extra_list_name?: string;
+          target_kcal?: number | null;
+          target_protein_g?: number | null;
+          target_carbs_g?: number | null;
+          target_fat_g?: number | null;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["user_settings"]["Insert"]>;

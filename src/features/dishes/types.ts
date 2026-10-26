@@ -42,6 +42,15 @@ export interface Dish {
   calories: number | null;
   /** Grammes de protéines pour une portion ; null = non renseigné. */
   proteinG: number | null;
+  /** Grammes de glucides pour une portion ; null = non renseigné. */
+  carbsG: number | null;
+  /** Grammes de lipides pour une portion ; null = non renseigné. */
+  fatG: number | null;
+  /**
+   * Apports calculés par l'application à partir du nom du plat
+   * (`features/nutrition/estimate.ts`), pas saisis à la main.
+   */
+  nutritionEstimated: boolean;
   /** Catégories (au moins une), dans l'ordre de `MEAL_SLOTS`. */
   mealSlots: MealSlot[];
   ingredients: DishIngredient[];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Icon } from "@/components/ui/Icon";
@@ -8,6 +8,8 @@ import { Field, TextareaField } from "@/components/ui/Field";
 import { fetchIngredients, saveDish } from "./api";
 import { MEAL_SLOTS } from "@/features/cycles/types";
 import type { MealSlot } from "@/lib/supabase/database.types";
+import { describeEstimate, estimateDish } from "@/features/nutrition/estimate";
+import { MACROS, type MacroKey, type NullableMacros } from "@/features/nutrition/types";
 import {
   DEFAULT_DISH_MEAL_SLOTS,
   DISH_CATEGORY_LABELS,
@@ -35,6 +37,15 @@ function parseOptionalAmount(value: string, decimals: number): number | null {
   if (!Number.isFinite(n) || n < 0) return null;
   const factor = 10 ** decimals;
   return Math.round(n * factor) / factor;
+}
+
+function toInputValues(values: NullableMacros): Record<MacroKey, string> {
+  return {
+    calories: values.calories == null ? "" : String(values.calories),
+    proteinG: values.proteinG == null ? "" : String(values.proteinG),
+    carbsG: values.carbsG == null ? "" : String(values.carbsG),
+    fatG: values.fatG == null ? "" : String(values.fatG),
+  };
 }
 
 function EmptyIngredientRow(): DishIngredient {
@@ -68,11 +79,16 @@ export function DishFormModal({
   const [name, setName] = useState(dish?.name ?? initialName);
   const [description, setDescription] = useState(dish?.description ?? "");
   const [mealSlots, setMealSlots] = useState<MealSlot[]>(dish?.mealSlots ?? initialMealSlots);
-  const [calories, setCalories] = useState(
-    dish?.calories == null ? "" : String(dish.calories)
+  // Apports : estimés automatiquement d'après le nom (mode auto) tant
+  // qu'ils n'ont pas été saisis à la main. Toucher un champ passe en
+  // saisie manuelle, à partir des valeurs estimées.
+  const [nutritionAuto, setNutritionAuto] = useState(
+    !dish ||
+      dish.nutritionEstimated ||
+      MACROS.every(({ key }) => dish[key] === null)
   );
-  const [proteinG, setProteinG] = useState(
-    dish?.proteinG == null ? "" : String(dish.proteinG)
+  const [manualNutrition, setManualNutrition] = useState<Record<MacroKey, string>>(() =>
+    toInputValues(dish ?? { calories: null, proteinG: null, carbsG: null, fatG: null })
   );
   const [ingredients, setIngredients] = useState<DishIngredient[]>(
     dish && dish.ingredients.length > 0 ? dish.ingredients : [EmptyIngredientRow()]
@@ -93,6 +109,30 @@ export function DishFormModal({
   useEffect(() => {
     void fetchIngredients().then(setIngredientSuggestions);
   }, []);
+
+  const ingredientKey = ingredients.map((i) => i.ingredientName).join("|");
+  const estimate = useMemo(
+    () =>
+      name.trim()
+        ? estimateDish({
+            name,
+            description,
+            mealSlots,
+            ingredientNames: ingredientKey.split("|").filter(Boolean),
+          })
+        : null,
+    [name, description, mealSlots, ingredientKey]
+  );
+  const nutritionInputs: Record<MacroKey, string> = nutritionAuto
+    ? estimate
+      ? toInputValues(estimate.macros)
+      : toInputValues({ calories: null, proteinG: null, carbsG: null, fatG: null })
+    : manualNutrition;
+
+  function editNutrition(key: MacroKey, value: string) {
+    setManualNutrition({ ...nutritionInputs, [key]: value });
+    setNutritionAuto(false);
+  }
 
   function handlePhotoSelect(file: File | undefined) {
     if (!file) return;
@@ -121,8 +161,15 @@ export function DishFormModal({
         name,
         description,
         mealSlots,
-        calories: parseOptionalAmount(calories, 0),
-        proteinG: parseOptionalAmount(proteinG, 1),
+        ...(nutritionAuto && estimate
+          ? { ...estimate.macros, nutritionEstimated: true }
+          : {
+              calories: parseOptionalAmount(nutritionInputs.calories, 0),
+              proteinG: parseOptionalAmount(nutritionInputs.proteinG, 1),
+              carbsG: parseOptionalAmount(nutritionInputs.carbsG, 1),
+              fatG: parseOptionalAmount(nutritionInputs.fatG, 1),
+              nutritionEstimated: false,
+            }),
         ingredients: ingredients.filter((i) => i.ingredientName.trim() !== ""),
         photoUrl: photoChanged ? photoPreview : undefined,
       });
@@ -194,30 +241,55 @@ export function DishFormModal({
           </p>
         </fieldset>
 
-        <div className="form-grid-2">
-          <Field
-            label="Calories par portion (kcal)"
-            name="dish-calories"
-            type="number"
-            inputMode="numeric"
-            min="0"
-            step="1"
-            value={calories}
-            onChange={(e) => setCalories(e.target.value)}
-            placeholder="Optionnel"
-          />
-          <Field
-            label="Protéines par portion (g)"
-            name="dish-protein"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="0.1"
-            value={proteinG}
-            onChange={(e) => setProteinG(e.target.value)}
-            placeholder="Optionnel"
-          />
-        </div>
+        <fieldset className="field nutrition-field">
+          <legend className="field-label">Apports par portion</legend>
+          <div className="macro-grid">
+            {MACROS.map((info) => (
+              <Field
+                key={info.key}
+                label={`${info.label} (${info.unit})`}
+                name={`dish-${info.key}`}
+                type="number"
+                inputMode={info.decimals === 0 ? "numeric" : "decimal"}
+                min="0"
+                step={info.decimals === 0 ? "1" : "0.1"}
+                value={nutritionInputs[info.key]}
+                onChange={(e) => editNutrition(info.key, e.target.value)}
+                placeholder={nutritionAuto ? "Auto" : "Optionnel"}
+              />
+            ))}
+          </div>
+          {nutritionAuto ? (
+            <p className="nutrition-note" aria-live="polite">
+              <Icon name="sparkle" size={16} />
+              <span>
+                {estimate ? (
+                  <>
+                    Estimé d&apos;après le nom : {describeEstimate(estimate)}.
+                    {estimate.recognized ? "" : " Ajoute la viande ou le plat dans le nom pour affiner."}{" "}
+                    Modifie une valeur pour la fixer toi-même.
+                  </>
+                ) : (
+                  "Les apports seront estimés à partir du nom du plat."
+                )}
+              </span>
+            </p>
+          ) : (
+            <p className="nutrition-note">
+              <span>Valeurs saisies à la main.</span>
+              {estimate ? (
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setNutritionAuto(true)}
+                >
+                  Revenir à l&apos;estimation (≈ {estimate.macros.calories} kcal,{" "}
+                  {estimate.macros.proteinG} g de protéines)
+                </button>
+              ) : null}
+            </p>
+          )}
+        </fieldset>
 
         <div className="field">
           <span className="field-label">Photo (optionnel)</span>

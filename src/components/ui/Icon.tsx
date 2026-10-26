@@ -21,6 +21,10 @@ const PATHS = {
   check: "M5 12.5l4.5 4.5L19 7",
   edit: "M4 20h4L19 9l-4-4L4 16v4Zm9-13 4 4",
   more: "M5 12h.01M12 12h.01M19 12h.01",
+  sparkle:
+    "M11 3l1.8 5.2L18 10l-5.2 1.8L11 17l-1.8-5.2L4 10l5.2-1.8L11 3Zm7.5 11l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7.7-2Z",
+  target:
+    "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-4a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-4a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z",
 } as const;
 
 export type IconName = keyof typeof PATHS;

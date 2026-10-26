@@ -66,7 +66,7 @@ Tables principales :
 | Table                  | Rôle                                                             |
 |------------------------|-------------------------------------------------------------------|
 | `ingredients`          | Référentiel unique des ingrédients                                |
-| `dishes`               | Plats (dont `photo_url`, `calories`, `protein_g`, voir plus bas)  |
+| `dishes`               | Plats (dont `photo_url`, apports `calories`/`protein_g`/`carbs_g`/`fat_g` + `nutrition_estimated`, voir plus bas) |
 | `dish_ingredients`     | Composition d'un plat (ingrédient + quantité + unité)              |
 | `meal_cycles`          | Motif unique de répétition (fréquence libre, en semaines), piloté depuis le Planning |
 | `meal_cycle_entries`   | Créneaux du motif (jour relatif + repas + plat)                        |
@@ -198,11 +198,25 @@ La liste ordonnée côté code est `MEAL_SLOTS` dans
 `src/features/cycles/types.ts` (source unique, utilisée par le Planning,
 `applyCycleToRange` et le mode démo).
 
-**Apports nutritionnels** : `dishes.calories` (entier) et
-`dishes.protein_g` (numeric(6,1)), tous deux nullables — `null` = non
-renseigné, distinct de 0. Ils remontent dans `PlannedMeal`
-(`dishCalories`, `dishProteinG`) et `sumNutrition`
-(`src/features/planning/nutrition.ts`) calcule les totaux du jour.
+**Apports nutritionnels** : `dishes.calories` (entier), `protein_g`,
+`carbs_g`, `fat_g` (numeric(6,1)), tous nullables — `null` = non
+renseigné, distinct de 0 — et `nutrition_estimated` (estimation
+automatique, 0017). Ils remontent dans `PlannedMeal` (`dishCalories`,
+`dishProteinG`, `dishCarbsG`, `dishFatG`, `dishNutritionEstimated`) ;
+`sumNutrition` et `compareToTargets` (`src/features/planning/nutrition.ts`)
+calculent les totaux du jour et l'écart aux objectifs.
+
+Dossier `src/features/nutrition/` :
+- `types.ts` — clés d'apports (`MACROS`, `Macros`, `NullableMacros`).
+- `estimate.ts` — estimation d'un plat d'après son nom (fonction pure,
+  dictionnaire + règles, voir `.ia/decisions.md` du 2026-10-26).
+- `targets.ts` — objectifs du compte (`user_settings.target_*`, copie
+  locale `nutrition-targets`) et calcul suggéré.
+- `TargetsModal.tsx`, `DayNutritionModal.tsx` — panneau Objectifs et
+  détail d'un jour, ouverts depuis le Planning.
+
+`src/lib/supabase/schemaCompat.ts` : repli quand une colonne de 0017
+manque (migration pas encore appliquée) ; à retirer ensuite.
 
 **Préférences d'affichage du Planning** (créneaux visibles, totaux) :
 stockées en `localStorage` par appareil (clés `planning-show-*`), pas en
