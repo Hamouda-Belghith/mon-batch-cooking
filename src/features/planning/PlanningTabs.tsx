@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 
-/** Bascule entre la vue Semaines (par défaut) et la vue Mois du planning. */
-export function PlanningTabs({ active }: { active: "weeks" | "month" }) {
+/** Bascule entre la vue Semaines (par défaut) et la vue Cycle du planning. */
+export function PlanningTabs({ active }: { active: "weeks" | "cycle" }) {
   return (
     <nav className="segmented planning-tabs" aria-label="Vue du planning">
       <Link
@@ -14,11 +14,11 @@ export function PlanningTabs({ active }: { active: "weeks" | "month" }) {
         Semaines
       </Link>
       <Link
-        href="/mois"
-        className={`segment ${active === "month" ? "active" : ""}`}
-        aria-current={active === "month" ? "page" : undefined}
+        href="/cycle"
+        className={`segment ${active === "cycle" ? "active" : ""}`}
+        aria-current={active === "cycle" ? "page" : undefined}
       >
-        Mois
+        Cycle
       </Link>
     </nav>
   );

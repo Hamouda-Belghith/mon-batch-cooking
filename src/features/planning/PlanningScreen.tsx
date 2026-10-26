@@ -252,7 +252,7 @@ export function PlanningScreen() {
     }
   }
 
-  // Arrivée depuis la vue Mois (`/?semaine=AAAA-MM-JJ`) : ouvre cette
+  // Arrivée depuis la vue Cycle (`/?semaine=AAAA-MM-JJ`) : ouvre cette
   // semaine, puis retire le paramètre de l'adresse.
   useEffect(() => {
     const param = new URLSearchParams(window.location.search).get("semaine");

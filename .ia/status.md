@@ -3,6 +3,14 @@
 Date: 2026-10-26
 
 Résumé:
+- **Vue « Cycle » à la place de la vue « Mois »** (2026-10-26, `/cycle`,
+  onglets « Semaines | Cycle » ; `/mois` redirige). Montre seulement les
+  semaines du cycle : la semaine en cours en tête, puis les suivantes
+  dans l'ordre, puis « retour à la semaine 1 ». Ajouter une semaine :
+  nouvelle (éditeur jour par jour), une semaine récente du planning ou
+  une semaine enregistrée ; sur chaque semaine : modifier les plats,
+  remplacer, placer plus tôt / plus tard (ou glisser), retirer. Plus de
+  calendrier. Pas de migration. Voir `.ia/decisions.md`.
 - **Apports estimés automatiquement + objectifs du jour** (2026-10-26).
   Les plats ont maintenant calories, protéines, glucides et lipides,
   estimés d'après leur nom (arabe tunisien, arabizi, français) par

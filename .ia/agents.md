@@ -60,9 +60,10 @@ Agir comme un développeur senior full-stack et architecte logiciel.
   localement (création de comptes locaux, gestion des plats, planning
   avec répétition et génération de liste). Les décisions structurantes liées à
   Supabase doivent être consignées dans `decisions.md`.
-- **Pas d'onglet Cycles.** La répétition est un paramètre du Planning
-  (chaque semaine / toutes les 2 semaines), avec un seul motif actif.
-  Voir `decisions.md`.
+- **Pas de cycles multiples.** La répétition est un paramètre du
+  Planning, avec un seul motif actif. La vue « Cycle » du Planning
+  (`/cycle`, ex-vue « Mois ») affiche et modifie ce motif unique : ce
+  n'est pas une ressource de cycles nommés. Voir `decisions.md`.
 
 ## En modifiant du code existant
 

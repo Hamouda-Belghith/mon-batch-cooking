@@ -29,7 +29,7 @@ interface Gesture {
  * Glisser-déposer à la souris et au doigt (Pointer Events, sans
  * dépendance). Le glisser HTML5 natif ne marche pas sur écran tactile,
  * d'où cette implémentation. Sert aux repas du Planning et aux semaines
- * de la vue Mois.
+ * de la vue Cycle.
  *
  * - Souris : on saisit un élément en le déplaçant de quelques pixels.
  * - Doigt : appui long (le défilement normal reste possible), puis on

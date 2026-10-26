@@ -6,6 +6,47 @@ haut du fichier (ordre antéchronologique).
 
 ---
 
+## 2026-10-26 — Vue « Cycle » à la place de la vue « Mois »
+
+**Contexte** : la vue Mois montrait la rotation et un calendrier de
+12 semaines (passées et à venir), avec échanges et copies de semaines.
+Demande : ne garder que ce qui compte — quelles semaines composent le
+cycle, combien, dans quel ordre, laquelle est en cours — et pouvoir
+ajouter une semaine (enregistrée, précédente ou nouvelle) ou en retirer.
+
+**Décision** :
+- Onglet renommé « Cycle » (`/cycle`) ; `/mois` et `/cycles` redirigent.
+  Toujours le motif unique (`meal_cycles`), pas de nouvelle ressource.
+- Affichage : semaine en cours d'abord (« En cours »), puis les suivantes
+  dans l'ordre (« Prochaine »…), flèches, puis « retour à la semaine 1 ».
+  Numérotation relative à aujourd'hui (la semaine 1 est celle en cours) :
+  c'est ce qui se lit sans calcul, et ça n'impose pas de stocker un point
+  de départ fixe.
+- Stockage inchangé : le motif démarre la semaine prochaine
+  (`firstChangeWeek`) pour ne jamais toucher la semaine en cours ; la
+  semaine en cours est donc la dernière du motif. Elle est reconnue comme
+  « en cours » si le motif démarrait avant, ou si ses plats ressemblent
+  (≥ 50 %) à cette dernière semaine (cas d'un motif réenregistré). Elle
+  ne se réordonne pas ; une semaine ajoutée se place juste avant elle
+  (dernière avant que le cycle ne recommence).
+- Ajouter une semaine : « Créer une nouvelle semaine » (éditeur jour par
+  jour, `CycleWeekEditor.tsx`, plats filtrés par catégorie), une des
+  9 dernières semaines du planning, ou une semaine enregistrée. Sur une
+  semaine du cycle : modifier les plats, remplacer par une autre semaine,
+  placer plus tôt / plus tard (ou glisser), retirer, voir dans le planning.
+- Supprimés : calendrier, échange / copie ponctuelle de semaines
+  (`swapCalendarWeeks`, `copyIntoCalendarWeek`) — non demandés, et
+  toujours faisables dans la vue Semaines.
+
+**Alternatives écartées** : numérotation fixe (« semaine 1 » = toujours
+la même semaine) — demanderait un point de départ stocké en plus
+(migration) pour un gain faible ; remplir une nouvelle semaine depuis la
+vue Semaines — une case vide s'y remplit « cette semaine seulement »,
+donc la semaine ne serait pas enregistrée dans le cycle sans question
+supplémentaire.
+
+---
+
 ## 2026-10-26 — Apports estimés automatiquement d'après le nom du plat ; objectifs du jour
 
 **Contexte** : les calories/protéines des plats n'étaient jamais

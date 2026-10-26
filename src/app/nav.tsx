@@ -41,10 +41,10 @@ export function Nav() {
   const toBuy = useToBuyCount();
 
   const tabs = LINKS.map((link) => {
-    // Le Planning a deux vues : Semaines (/) et Mois (/mois).
+    // Le Planning a deux vues : Semaines (/) et Cycle (/cycle).
     const isActive =
       link.href === "/"
-        ? pathname === "/" || pathname.startsWith("/mois")
+        ? pathname === "/" || pathname.startsWith("/cycle") || pathname.startsWith("/mois")
         : pathname.startsWith(link.href);
     const badge = link.href === "/a-acheter" && toBuy > 0 ? toBuy : null;
     return { ...link, isActive, badge };

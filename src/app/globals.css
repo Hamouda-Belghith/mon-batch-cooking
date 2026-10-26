@@ -23,7 +23,7 @@
   --radish: #b42318;
   --radish-tint: #fbe8e6;
 
-  /* Couleurs des semaines de rotation (vue Mois), voir rotation.ts. */
+  /* Couleurs des semaines du cycle (vue Cycle), voir rotation.ts. */
   --wk-0: #2f7d5b;
   --wk-1: #c98a12;
   --wk-2: #c4533a;
@@ -2387,7 +2387,7 @@ button.week-day-head:hover {
 }
 
 
-/* ---------- Planning : onglets Semaines / Mois ---------- */
+/* ---------- Planning : onglets Semaines / Cycle ---------- */
 
 .planning-tabs {
   align-self: flex-start;
@@ -2398,7 +2398,7 @@ a.segment {
   text-decoration: none;
 }
 
-/* ---------- Vue Mois ---------- */
+/* ---------- Vue Cycle ---------- */
 
 .chip-xs {
   min-height: 1.5rem;
@@ -2406,222 +2406,153 @@ a.segment {
   font-size: 0.75rem;
 }
 
-.rot-swatch {
-  flex-shrink: 0;
-  width: 0.65rem;
-  height: 0.65rem;
-  border-radius: 999px;
-  background: var(--wk, var(--line-strong));
-}
-
-.rot-chip {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--wk) 16%, var(--surface));
-  color: var(--ink);
-}
-
-.chip-modified {
-  border-color: transparent;
-  background: var(--mustard-tint);
-  color: #6b4d07;
-}
-
-.rot-head {
+.cycle-list {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.rot-panel .panel-heading {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0;
-}
-
-.rot-freq {
-  font-size: 0.875rem;
-  font-weight: 650;
-  color: var(--basil);
-}
-
-.rot-panel > .field-hint {
-  margin: 0.35rem 0 0.85rem;
-}
-
-.rot-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
-  gap: 0.6rem;
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 40rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.rot-card {
-  position: relative;
+.cycle-arrow {
+  align-self: center;
+  padding: 0.1rem 0;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--line-strong);
+}
+
+.cycle-card {
   border: 1px solid var(--line);
-  border-top: 4px solid var(--wk, var(--line-strong));
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--wk, transparent) 7%, var(--surface));
+  border-left: 6px solid var(--wk, var(--line-strong));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--wk, transparent) 6%, var(--surface));
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
   transition: border-color 0.12s ease, background-color 0.12s ease;
 }
 
-.rot-card-main {
+.cycle-card-current {
+  border-color: var(--mustard);
+  border-left-color: var(--wk, var(--mustard));
+  box-shadow: 0 0 0 2px var(--mustard-tint);
+}
+
+.cycle-card-main {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.2rem;
+  gap: 0.25rem;
   width: 100%;
-  height: 100%;
-  min-height: 7.5rem;
-  padding: 0.6rem 0.7rem;
+  padding: 0.75rem 0.9rem;
   border: none;
   background: transparent;
   text-align: left;
   color: inherit;
 }
 
-.rot-card-head {
-  display: inline-flex;
+.cycle-card-head {
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  font-weight: 700;
+  gap: 0.5rem;
 }
 
-.rot-card-date,
-.rot-card-count {
+.cycle-card-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 999px;
+  background: var(--wk, var(--line-strong));
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.cycle-card-title {
+  font-size: 1.0625rem;
+  font-weight: 750;
+}
+
+.cycle-chip-next {
+  border-color: transparent;
+  background: var(--basil-tint);
+  color: var(--basil-deep);
+}
+
+.cycle-card-date,
+.cycle-card-count {
   font-size: 0.8125rem;
   color: var(--ink-soft);
 }
 
-.rot-card-dishes {
+.cycle-card-dishes {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
   overflow: hidden;
-  font-size: 0.875rem;
-  line-height: 1.3;
-  flex: 1;
+  font-size: 0.9375rem;
+  line-height: 1.35;
 }
 
-.rot-add {
-  border-style: dashed;
-  border-top-width: 1px;
-  border-top-style: dashed;
-  background: transparent;
-}
-
-.rot-add .rot-card-main {
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  color: var(--basil);
-}
-
-.rot-add-title {
-  font-weight: 650;
-}
-
-.month-weeks {
+.cycle-loop {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  gap: 0.4rem;
+  max-width: 40rem;
   margin: 0;
-  padding: 0;
-  list-style: none;
+  padding: 0.6rem 0.9rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  font-weight: 650;
+  color: var(--basil-deep);
 }
 
-.month-week {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0.25rem;
-  padding-right: 0.25rem;
-  border: 1px solid var(--line);
-  border-left: 5px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
-  transition: border-color 0.12s ease, background-color 0.12s ease;
+.cycle-screen > .field-hint {
+  max-width: 40rem;
 }
 
-.month-week-colored {
-  border-left-color: var(--wk);
-  background: color-mix(in srgb, var(--wk) 6%, var(--surface));
-}
-
-.month-week-current {
-  box-shadow: 0 0 0 1px var(--mustard);
-}
-
-.month-week-past {
-  opacity: 0.75;
-}
-
-.month-week-main {
+/* Éditeur d'une semaine du cycle : un bloc par jour. */
+.cycle-editor {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.75rem;
+}
+
+.cycle-editor-day {
+  margin: 0;
+  padding: 0.6rem 0.8rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   min-width: 0;
-  padding: 0.65rem 0.75rem;
-  border: none;
-  background: transparent;
-  text-align: left;
-  color: inherit;
 }
 
-.month-week-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.5rem;
-}
-
-.month-week-dates {
+.cycle-editor-day-title {
+  padding: 0 0.3rem;
   font-weight: 700;
 }
 
-.month-week-dishes {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+.cycle-editor-row {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.cycle-editor-row + .cycle-editor-row {
+  margin-top: 0.4rem;
+}
+
+.cycle-editor-row label {
   font-size: 0.875rem;
+  font-weight: 600;
   color: var(--ink-soft);
-}
-
-.month-week-count {
-  font-size: 0.8125rem;
-  color: var(--ink-soft);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.month-past-title {
-  margin-top: 0.75rem;
-}
-
-.saved-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.saved-chips > li {
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 .pick-group {
@@ -2636,7 +2567,7 @@ a.segment {
   color: var(--ink-soft);
 }
 
-/* Glisser-déposer de la vue Mois. */
+/* Glisser-déposer (vue Cycle). */
 .dnd-source {
   opacity: 0.45;
 }
@@ -2645,12 +2576,6 @@ a.segment {
   outline: 2px dashed var(--basil);
   outline-offset: 2px;
   background: var(--basil-tint);
-}
-
-.dnd-pickable {
-  outline: 2px solid var(--basil-tint);
-  outline-offset: 1px;
-  cursor: pointer;
 }
 
 .drag-ghost-action {
@@ -2666,8 +2591,8 @@ a.segment {
     align-self: stretch;
   }
 
-  .month-week-count {
-    display: none;
+  .cycle-editor-row {
+    grid-template-columns: 5rem minmax(0, 1fr);
   }
 }
 

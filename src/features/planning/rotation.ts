@@ -9,25 +9,23 @@ import {
   fetchSinglePattern,
   upsertPattern,
 } from "./repeat";
-import { replaceWeek, snapshotWeek } from "./savedWeeks";
+import { snapshotWeek } from "./savedWeeks";
 import { SPECIAL_MEAL_LABELS, type PlannedMeal, type SavedWeekEntry } from "./types";
 
-// Vue « Mois » : la rotation (motif de répétition de N semaines, voir
-// repeat.ts) vue comme une liste de semaines qu'on réordonne, complète
-// ou raccourcit, et le calendrier des semaines autour d'aujourd'hui.
+// Vue « Cycle » : le motif de répétition de N semaines (voir repeat.ts)
+// vu comme la suite de ses semaines, qui s'enchaînent puis recommencent.
+// On y ajoute, retire, réordonne ou modifie des semaines.
 //
-// Toute modification de la rotation s'applique à partir de la semaine
-// prochaine (jamais à la semaine en cours, déjà entamée) : la rotation
-// est réenregistrée avec cette semaine comme point de départ et ses
-// semaines dans l'ordre affiché, puis les repas qu'elle avait posés
-// sont recalculés. Les repas modifiés à la main restent.
+// Toute modification s'applique à partir de la semaine prochaine (jamais
+// à la semaine en cours, déjà entamée) : le motif est réenregistré avec
+// cette semaine comme point de départ et ses semaines dans l'ordre, puis
+// les repas qu'il avait posés sont recalculés. Les repas modifiés à la
+// main restent.
 
-/** Nombre de couleurs de la palette des semaines de rotation (voir globals.css). */
+/** Nombre de couleurs de la palette des semaines du cycle (voir globals.css). */
 export const ROTATION_PALETTE_SIZE = 6;
-/** Semaines passées affichées dans le calendrier (on peut y reprendre une semaine réussie). */
-export const PAST_WEEKS = 3;
-/** Semaines à venir affichées, semaine en cours comprise. */
-export const UPCOMING_WEEKS = 9;
+/** Semaines du planning proposées comme modèle : celle-ci et les précédentes. */
+export const RECENT_WEEKS = 9;
 
 export interface RotationWeek {
   /** Indice de palette, stable quand la semaine change de place. */
@@ -38,28 +36,31 @@ export interface RotationWeek {
 
 export interface Rotation {
   patternId: string;
-  /** Lundi de la première semaine concernée par une modification. */
+  /** Lundi de la première semaine concernée par une modification (semaine prochaine). */
   firstWeekISO: string;
   /** Semaines dans l'ordre où elles reviennent à partir de `firstWeekISO`. */
   weeks: RotationWeek[];
+  /**
+   * Semaine du cycle en cours cette semaine-ci : toujours la dernière de
+   * `weeks` (celle d'avant `firstWeekISO`), ou `null` si le cycle ne
+   * couvre pas la semaine en cours (il démarre plus tard).
+   */
+  currentIndex: number | null;
 }
 
-export interface CalendarWeek {
+/** Semaine récente du planning, proposée comme modèle pour le cycle. */
+export interface RecentWeek {
   weekStartISO: string;
-  isPast: boolean;
   isCurrent: boolean;
-  meals: PlannedMeal[];
   /** Noms des plats / repas spéciaux, sans doublon, dans l'ordre de la semaine. */
   labels: string[];
-  /** Indice dans `Rotation.weeks` de la semaine de rotation reconnue dans ses repas. */
-  rotationIndex: number | null;
-  /** Modifiée à la main par rapport à la rotation. */
-  modified: boolean;
+  dishCount: number;
 }
 
-export interface MonthOverview {
+export interface CycleOverview {
   rotation: Rotation | null;
-  calendar: CalendarWeek[];
+  /** Cette semaine et les précédentes qui ont des plats, de la plus récente à la plus ancienne. */
+  recentWeeks: RecentWeek[];
 }
 
 function todayWeekISO(): string {
@@ -70,7 +71,11 @@ function weekAfter(iso: string, weeks = 1): string {
   return toISODate(addDays(parseISODate(iso), 7 * weeks));
 }
 
-/** Semaine à partir de laquelle une modification de la rotation s'applique. */
+function weekEnd(iso: string): string {
+  return toISODate(addDays(parseISODate(iso), 6));
+}
+
+/** Semaine à partir de laquelle une modification du cycle s'applique. */
 function firstChangeWeek(pattern: MealCycle | null): string {
   const next = weekAfter(todayWeekISO());
   if (!pattern) return next;
@@ -79,7 +84,7 @@ function firstChangeWeek(pattern: MealCycle | null): string {
 }
 
 /** Découpe le motif en semaines, dans l'ordre où elles reviennent à partir de `fromISO`. */
-export function rotationFromPattern(pattern: MealCycle, fromISO: string): Rotation {
+function rotationFromPattern(pattern: MealCycle, fromISO: string): Omit<Rotation, "currentIndex"> {
   const count = Math.max(1, Math.round(pattern.durationDays / 7));
   const blocks: RotationWeek[] = Array.from({ length: count }, (_, i) => ({
     color: pattern.weekColors?.[i] ?? i % ROTATION_PALETTE_SIZE,
@@ -97,26 +102,13 @@ export function rotationFromPattern(pattern: MealCycle, fromISO: string): Rotati
   };
 }
 
-/** Indice (dans `rotation.weeks`) de la semaine que la rotation prévoit pour `weekISO`. */
-export function plannedRotationIndex(rotation: Rotation, weekISO: string): number | null {
-  if (weekISO < rotation.firstWeekISO) return null;
-  const diffWeeks = Math.round(
-    (parseISODate(weekISO).getTime() - parseISODate(rotation.firstWeekISO).getTime()) /
-      (7 * 24 * 60 * 60 * 1000)
-  );
-  return diffWeeks % rotation.weeks.length;
-}
-
 /**
- * Semaine de rotation la plus proche des plats de `meals` (au moins la
- * moitié en commun), pour colorer une semaine du calendrier d'après ce
- * qu'elle contient vraiment — y compris une semaine passée ou échangée.
+ * La semaine en cours a-t-elle (au moins pour moitié) les plats de la
+ * semaine `week` du cycle ? Sert quand le motif a été réenregistré pour
+ * démarrer la semaine prochaine : la semaine en cours en fait encore
+ * partie si elle ressemble à la dernière semaine du cycle.
  */
-function matchRotationWeek(
-  rotation: Rotation,
-  weekStartISO: string,
-  meals: PlannedMeal[]
-): number | null {
+function weekMatches(week: RotationWeek, weekStartISO: string, meals: PlannedMeal[]): boolean {
   const start = parseISODate(weekStartISO).getTime();
   const keys = new Set(
     meals
@@ -126,80 +118,94 @@ function matchRotationWeek(
         return `${d}|${m.mealSlot}|${m.dishId}`;
       })
   );
-  if (keys.size === 0) return null;
-  let best: { index: number; score: number } | null = null;
-  rotation.weeks.forEach((week, index) => {
-    if (week.entries.length === 0) return;
-    const common = week.entries.filter((e) =>
-      keys.has(`${e.dayOffset}|${e.mealSlot}|${e.dishId}`)
-    ).length;
-    const score = common / Math.max(week.entries.length, keys.size);
-    if (!best || score > best.score) best = { index, score };
-  });
-  const found = best as { index: number; score: number } | null;
-  return found && found.score >= 0.5 ? found.index : null;
+  if (keys.size === 0 || week.entries.length === 0) return false;
+  const common = week.entries.filter((e) => keys.has(`${e.dayOffset}|${e.mealSlot}|${e.dishId}`))
+    .length;
+  return common / Math.max(week.entries.length, keys.size) >= 0.5;
 }
 
-export async function fetchMonthOverview(): Promise<MonthOverview> {
+function labelsOf(meals: PlannedMeal[]): string[] {
+  return [
+    ...new Set(
+      [...meals]
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .map((m) => (m.special ? SPECIAL_MEAL_LABELS[m.special] : m.dishName))
+        .filter((label): label is string => Boolean(label))
+    ),
+  ];
+}
+
+export async function fetchCycleOverview(): Promise<CycleOverview> {
   const current = todayWeekISO();
-  const from = weekAfter(current, -PAST_WEEKS);
-  const lastWeek = weekAfter(current, UPCOMING_WEEKS - 1);
-  const to = toISODate(addDays(parseISODate(lastWeek), 6));
+  const from = weekAfter(current, -(RECENT_WEEKS - 1));
 
-  // Comme le Planning : les semaines à venir sont remplies par la
-  // rotation avant d'être affichées (jamais les semaines passées).
-  await ensurePatternApplied(current, to);
-  const [pattern, meals] = await Promise.all([fetchSinglePattern(), fetchPlannedMeals(from, to)]);
-  const rotation = pattern ? rotationFromPattern(pattern, firstChangeWeek(pattern)) : null;
+  // Comme le Planning : la semaine en cours est remplie par le cycle
+  // avant d'être lue (jamais les semaines passées).
+  await ensurePatternApplied(current, weekEnd(current));
+  const [pattern, meals] = await Promise.all([
+    fetchSinglePattern(),
+    fetchPlannedMeals(from, weekEnd(current)),
+  ]);
 
-  const calendar: CalendarWeek[] = [];
-  for (let i = 0; i < PAST_WEEKS + UPCOMING_WEEKS; i++) {
-    const weekStartISO = weekAfter(from, i);
-    const weekEnd = toISODate(addDays(parseISODate(weekStartISO), 6));
-    const weekMeals = meals
-      .filter((m) => m.date >= weekStartISO && m.date <= weekEnd)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    const labels = [
-      ...new Set(
-        weekMeals
-          .map((m) => (m.special ? SPECIAL_MEAL_LABELS[m.special] : m.dishName))
-          .filter((label): label is string => Boolean(label))
-      ),
-    ];
-    const rotationIndex = rotation ? matchRotationWeek(rotation, weekStartISO, weekMeals) : null;
-    const isPast = weekStartISO < current;
-    calendar.push({
+  const recentWeeks: RecentWeek[] = [];
+  for (let i = 0; i < RECENT_WEEKS; i++) {
+    const weekStartISO = weekAfter(current, -i);
+    const weekMeals = meals.filter(
+      (m) => m.date >= weekStartISO && m.date <= weekEnd(weekStartISO)
+    );
+    const dishCount = weekMeals.filter((m) => m.dishId).length;
+    if (dishCount === 0) continue;
+    recentWeeks.push({
       weekStartISO,
-      isPast,
-      isCurrent: weekStartISO === current,
-      meals: weekMeals,
-      labels,
-      rotationIndex,
-      modified:
-        !isPast &&
-        rotationIndex !== null &&
-        weekMeals.some((m) => m.mealCycleId === null && (m.dishId || m.special)),
+      isCurrent: i === 0,
+      labels: labelsOf(weekMeals),
+      dishCount,
     });
   }
 
-  return { rotation, calendar };
+  if (!pattern) return { rotation: null, recentWeeks };
+
+  const base = rotationFromPattern(pattern, firstChangeWeek(pattern));
+  const last = base.weeks.length - 1;
+  const startsBeforeNow = toISODate(startOfWeek(parseISODate(pattern.startDate))) <= current;
+  const currentMeals = meals.filter((m) => m.date >= current);
+  const coversCurrent =
+    base.firstWeekISO === weekAfter(current) &&
+    (startsBeforeNow || weekMatches(base.weeks[last], current, currentMeals));
+
+  return {
+    rotation: { ...base, currentIndex: coversCurrent ? last : null },
+    recentWeeks,
+  };
 }
 
-/** Plats d'une semaine du calendrier, au format d'une semaine de rotation. */
+/** Lundi de la prochaine fois où revient la semaine `index` du cycle (cette semaine si en cours). */
+export function occurrenceISO(rotation: Rotation, index: number): string {
+  if (index === rotation.currentIndex) return todayWeekISO();
+  return weekAfter(rotation.firstWeekISO, index);
+}
+
+/** Lundi de la fois suivante, après l'occurrence en cours ou à venir. */
+export function nextTimeISO(rotation: Rotation, index: number): string {
+  return weekAfter(rotation.firstWeekISO, index);
+}
+
+/** Plats d'une semaine (planning ou enregistrée), au format d'une semaine du cycle. */
 export function rotationEntriesFrom(entries: SavedWeekEntry[]): MealCycleEntry[] {
   return entries
     .filter((e): e is SavedWeekEntry & { dishId: string } => Boolean(e.dishId) && !e.special)
     .map((e) => ({ dayOffset: e.dayOffset, mealSlot: e.mealSlot, dishId: e.dishId }));
 }
 
-export async function calendarWeekEntries(weekStartISO: string): Promise<SavedWeekEntry[]> {
-  return snapshotWeek(weekStartISO);
+/** Plats d'une semaine du planning (lundi `weekStartISO`). */
+export async function planningWeekEntries(weekStartISO: string): Promise<MealCycleEntry[]> {
+  return rotationEntriesFrom(await snapshotWeek(weekStartISO));
 }
 
 /**
- * Enregistre la rotation `weeks` (dans l'ordre où elles reviennent à
- * partir de `firstWeekISO`) puis recalcule les repas qu'elle pose à
- * partir de cette semaine. Une liste vide arrête la rotation.
+ * Enregistre le cycle `weeks` (dans l'ordre où elles reviennent à partir
+ * de `firstWeekISO`) puis recalcule les repas qu'il pose à partir de
+ * cette semaine. Une liste vide arrête le cycle.
  */
 async function saveRotation(
   patternId: string | null,
@@ -223,13 +229,13 @@ async function saveRotation(
       week.entries.map((e) => ({ ...e, dayOffset: i * 7 + e.dayOffset }))
     ),
   });
-  if (!pattern) throw new Error("Impossible d'enregistrer la rotation");
+  if (!pattern) throw new Error("Impossible d'enregistrer le cycle");
 
   await deleteLinkedMealsFrom(pattern.id, firstWeekISO);
   await applyForward(pattern.id, firstWeekISO);
 }
 
-/** Déplace la semaine `from` de la rotation à la place `to`. */
+/** Déplace la semaine `from` du cycle à la place `to`. */
 export async function moveRotationWeek(rotation: Rotation, from: number, to: number): Promise<void> {
   if (from === to) return;
   const weeks = [...rotation.weeks];
@@ -246,14 +252,25 @@ export async function removeRotationWeek(rotation: Rotation, index: number): Pro
   );
 }
 
+/** Remplace les plats de la semaine `index` du cycle (sa couleur et sa place ne changent pas). */
+export async function replaceRotationWeek(
+  rotation: Rotation,
+  index: number,
+  entries: MealCycleEntry[]
+): Promise<void> {
+  if (entries.length === 0) throw new Error("Choisis au moins un plat pour cette semaine.");
+  const weeks = rotation.weeks.map((week, i) => (i === index ? { ...week, entries } : week));
+  await saveRotation(rotation.patternId, rotation.firstWeekISO, weeks);
+}
+
 /**
- * Ajoute une semaine à la rotation, à la place `position` (à la fin par
- * défaut). Sans rotation, en crée une qui démarre la semaine prochaine.
+ * Ajoute une semaine au cycle : juste avant la semaine en cours (donc la
+ * dernière avant que le cycle ne recommence), sinon à la fin. Sans cycle,
+ * en crée un qui démarre la semaine prochaine.
  */
 export async function addRotationWeek(
   rotation: Rotation | null,
-  entries: MealCycleEntry[],
-  position?: number
+  entries: MealCycleEntry[]
 ): Promise<void> {
   if (entries.length === 0) {
     throw new Error("Cette semaine n'a aucun plat : rien à répéter.");
@@ -263,25 +280,11 @@ export async function addRotationWeek(
   const color =
     Array.from({ length: ROTATION_PALETTE_SIZE }, (_, i) => i).find((c) => !used.has(c)) ??
     weeks.length % ROTATION_PALETTE_SIZE;
-  weeks.splice(position ?? weeks.length, 0, { color, entries });
+  const position = rotation?.currentIndex ?? weeks.length;
+  weeks.splice(position, 0, { color, entries });
   await saveRotation(
     rotation?.patternId ?? null,
     rotation?.firstWeekISO ?? firstChangeWeek(null),
     weeks
   );
-}
-
-/** Échange les repas de deux semaines du calendrier (une seule fois, la rotation ne change pas). */
-export async function swapCalendarWeeks(aISO: string, bISO: string): Promise<void> {
-  const [a, b] = await Promise.all([snapshotWeek(aISO), snapshotWeek(bISO)]);
-  await replaceWeek(aISO, b);
-  await replaceWeek(bISO, a);
-}
-
-/** Remplace les repas de la semaine `targetISO` par `entries` (une seule fois). */
-export async function copyIntoCalendarWeek(
-  entries: SavedWeekEntry[],
-  targetISO: string
-): Promise<void> {
-  await replaceWeek(targetISO, entries);
 }

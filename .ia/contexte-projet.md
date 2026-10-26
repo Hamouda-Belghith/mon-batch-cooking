@@ -34,6 +34,13 @@ accueillir d'autres foyers pour l'instant.
   la main sur des semaines à venir et entrent en conflit avec la
   fréquence choisie, l'utilisateur en est averti avant de valider (pour
   changer de fréquence, ou confirmer le remplacement).
+- Vue « Cycle » du Planning (onglets « Semaines | Cycle ») : les semaines
+  de ce motif unique, dans l'ordre où elles s'enchaînent, la semaine en
+  cours en tête, puis « retour à la semaine 1 ». On y ajoute une semaine
+  (nouvelle, remplie jour par jour ; reprise d'une semaine récente du
+  planning ; ou d'une semaine enregistrée), on en retire, on change
+  l'ordre, on modifie ou remplace les plats d'une semaine. Pas de
+  calendrier des semaines à venir.
 - En choisissant le plat d'une case du Planning : barre de recherche
   pour filtrer les plats par nom, et bouton « + Nouveau plat » qui
   ouvre le même formulaire que l'écran Plats (nom prérempli avec la
