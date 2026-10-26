@@ -45,12 +45,12 @@ viande (poulet, bœuf ou poisson) par déjeuner/dîner.
   ligne Total (créneaux affichés), pour rester cohérent avec la décision
   du 2026-09-20. Jour vide : pas de signalement. Pastille sur l'en-tête
   du jour ; toucher l'en-tête ou le total ouvre le détail du jour.
-- **Code tolérant à une migration pas encore appliquée**
-  (`src/lib/supabase/schemaCompat.ts`) : lectures et enregistrement de
-  plat retentent sans les colonnes de 0017 (42703 / PGRST204). La base
-  n'était pas joignable depuis la session (pas de `.env`), le déploiement
-  ne devait pas casser le Planning en attendant. À retirer une fois 0017
-  appliquée.
+- **Plusieurs plats de base cités** (« Poisson riz patate douce ») :
+  moitié de chacun. Les bases « faibles » (au four, grillades, légumes,
+  marka) ne comptent que si aucun vrai plat n'est cité.
+- Déploiement : le code a d'abord été poussé avec un repli tolérant à
+  l'absence des colonnes de 0017, le temps d'appliquer la migration
+  (connecteur Supabase), puis ce repli a été retiré.
 
 **Alternatives écartées** : appel à un LLM (Claude, Gemini…) depuis
 l'app — meilleur sur les noms inconnus, mais clé d'API, coût et

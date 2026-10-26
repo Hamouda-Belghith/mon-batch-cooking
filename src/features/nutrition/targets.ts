@@ -5,7 +5,6 @@ import {
   isDemoMode,
   saveDemoNutritionTargets,
 } from "@/lib/localDemo";
-import { isMissingColumnError } from "@/lib/supabase/schemaCompat";
 import { EMPTY_MACROS, toNumberOrNull, type Macros, type NullableMacros } from "./types";
 
 // Objectifs nutritionnels du jour, propres à chaque compte (colonnes
@@ -58,8 +57,7 @@ export async function fetchNutritionTargets(): Promise<NullableMacros> {
     .maybeSingle()) as { data: TargetsRow | null; error: PostgrestError | null };
 
   if (error) {
-    // Colonnes absentes = migration 0017 pas encore appliquée : pas d'objectif.
-    if (!isMissingColumnError(error)) console.warn("Impossible de charger les objectifs", error);
+    console.warn("Impossible de charger les objectifs", error);
     return readCachedTargets();
   }
 
@@ -108,12 +106,6 @@ export async function saveNutritionTargets(targets: NullableMacros): Promise<voi
 
   if (error) {
     console.warn("Impossible d'enregistrer les objectifs", error);
-    if (isMissingColumnError(error) || error.code === "23502") {
-      throw new Error(
-        "La base de données n'est pas à jour (migration SQL 0017 manquante). " +
-          "Préviens la personne qui gère l'application."
-      );
-    }
     throw new Error("Les objectifs n'ont pas pu être enregistrés. Réessaie.");
   }
   writeCache(targets);

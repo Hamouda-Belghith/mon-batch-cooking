@@ -215,9 +215,6 @@ Dossier `src/features/nutrition/` :
 - `TargetsModal.tsx`, `DayNutritionModal.tsx` — panneau Objectifs et
   détail d'un jour, ouverts depuis le Planning.
 
-`src/lib/supabase/schemaCompat.ts` : repli quand une colonne de 0017
-manque (migration pas encore appliquée) ; à retirer ensuite.
-
 **Préférences d'affichage du Planning** (créneaux visibles, totaux) :
 stockées en `localStorage` par appareil (clés `planning-show-*`), pas en
 base — ce sont des préférences d'affichage, pas des données partagées.

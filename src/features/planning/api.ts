@@ -15,7 +15,6 @@ import {
 import { addDays, parseISODate, toISODate } from "@/lib/date";
 import type { MealSlot } from "@/lib/supabase/database.types";
 import { MEAL_SLOTS, type MealCycle } from "@/features/cycles/types";
-import { isMissingColumnError } from "@/lib/supabase/schemaCompat";
 import { toNumberOrNull } from "@/features/nutrition/types";
 import type { PlannedMeal, SpecialMeal } from "./types";
 
@@ -33,19 +32,11 @@ interface PlannedMealRow {
     name: string;
     calories: number | null;
     protein_g: number | string | null;
-    // Absents tant que 0017 n'est pas appliquée (lecture de repli).
-    carbs_g?: number | string | null;
-    fat_g?: number | string | null;
-    nutrition_estimated?: boolean | null;
+    carbs_g: number | string | null;
+    fat_g: number | string | null;
+    nutrition_estimated: boolean;
   } | null;
 }
-
-const PLANNED_MEAL_COLUMNS =
-  "id, date, meal_slot, dish_id, meal_cycle_id, special, " +
-  "dishes(name, calories, protein_g, carbs_g, fat_g, nutrition_estimated)";
-/** Colonnes d'avant `0017_dish_macros_and_targets.sql`. */
-const LEGACY_PLANNED_MEAL_COLUMNS =
-  "id, date, meal_slot, dish_id, meal_cycle_id, special, dishes(name, calories, protein_g)";
 
 interface OccupiedSlot {
   id: string;
@@ -84,18 +75,15 @@ export async function fetchPlannedMeals(
   const userId = await getCurrentUserId();
   if (!userId) return [];
 
-  const selectMeals = (columns: string) =>
-    supabase
-      .from("planned_meals")
-      .select(columns)
-      .eq("user_id", userId)
-      .gte("date", periodStart)
-      .lte("date", periodEnd) as unknown as Promise<Result<PlannedMealRow>>;
-
-  let { data, error } = await selectMeals(PLANNED_MEAL_COLUMNS);
-  if (isMissingColumnError(error)) {
-    ({ data, error } = await selectMeals(LEGACY_PLANNED_MEAL_COLUMNS));
-  }
+  const { data, error } = (await supabase
+    .from("planned_meals")
+    .select(
+      "id, date, meal_slot, dish_id, meal_cycle_id, special, " +
+        "dishes(name, calories, protein_g, carbs_g, fat_g, nutrition_estimated)"
+    )
+    .eq("user_id", userId)
+    .gte("date", periodStart)
+    .lte("date", periodEnd)) as Result<PlannedMealRow>;
 
   if (error || !data) {
     console.warn("Impossible de charger le planning", error);

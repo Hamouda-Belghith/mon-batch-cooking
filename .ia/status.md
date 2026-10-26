@@ -13,11 +13,15 @@ Résumé:
   « Objectifs » (calcul depuis poids / séances / objectif), totaux
   glucides et lipides dans « Affichage », pastille « Sous l'objectif » /
   « Objectif atteint » par jour, détail du jour en touchant l'en-tête ou
-  le total. Migration `0017_dish_macros_and_targets.sql` **NON
-  appliquée** (base injoignable depuis la session, pas de `.env`) : en
-  attendant, le code relit/enregistre sans les nouvelles colonnes
-  (`schemaCompat.ts`), et l'estimation en lot comme les objectifs
-  affichent « migration manquante ». Voir `.ia/decisions.md`.
+  le total. Migration `0017_dish_macros_and_targets.sql` **appliquée**
+  (2026-10-26, via le connecteur Supabase ; colonnes vérifiées avant et
+  après). Le code de repli temporaire (`schemaCompat.ts`) a été retiré
+  dans la foulée. Dictionnaire ajusté sur les vrais noms de plats de la
+  base (surtout arabizi/français : « ma9arouna », « hommous b lahma »,
+  « mosli », « butter chicken », « roulé »…) ; seul « barquette » reste
+  générique. Les 3 plats du compte de Hamouda ont été estimés
+  directement ; les autres comptes passent par le bouton de l'écran
+  Plats. Voir `.ia/decisions.md`.
 - **Vue « Mois » du planning** (2026-10-06, `/mois`, onglets
   « Semaines | Mois » en haut du Planning ; Semaines reste la vue par
   défaut). Rotation (le motif de répétition) affichée en cartes

@@ -127,6 +127,14 @@ mode **Session** au mode **Transaction** pour des migrations (DDL) :
 une session dédiée, pas de comportement surprenant de pgbouncer en
 mode transaction.
 
+**Alternative (testée le 2026-10-26)** : quand le connecteur Supabase
+(MCP) est disponible dans la session, l'utiliser plutôt que la
+connexion Postgres : projet `meal_planner` (ref `tueqwextvbtuojpfonov`),
+`apply_migration` avec le contenu exact du fichier (nom = nom du fichier
+sans `.sql`), vérification avant/après via `execute_sql` sur
+`information_schema`. Les migrations 0001–0016 ont été appliquées à la
+main : la table d'historique de Supabase ne commence qu'à 0017.
+
 **Comment exécuter une migration** : pas de client Postgres dans les
 dépendances du projet (`pg` n'est utile qu'à l'assistant, pas à
 l'app — ne pas l'ajouter à `package.json`, voir « Principes de

@@ -8,7 +8,6 @@ import {
   deleteDemoDish,
   isDemoMode,
 } from "@/lib/localDemo";
-import { isMissingColumnError } from "@/lib/supabase/schemaCompat";
 import { toNumberOrNull, type NullableMacros } from "@/features/nutrition/types";
 import { normalizeMealSlots, type Dish } from "./types";
 
@@ -32,18 +31,12 @@ interface DishRow {
   description: string | null;
   photo_url: string | null;
   calories: number | null;
-  protein_g: number | null;
-  // Absents tant que 0017 n'est pas appliquée (lecture de repli).
-  carbs_g?: number | string | null;
-  fat_g?: number | string | null;
-  nutrition_estimated?: boolean | null;
+  protein_g: number | string | null;
+  carbs_g: number | string | null;
+  fat_g: number | string | null;
+  nutrition_estimated: boolean;
   meal_slots: string[] | null;
 }
-
-const DISH_COLUMNS =
-  "id, name, description, photo_url, calories, protein_g, carbs_g, fat_g, nutrition_estimated, meal_slots";
-/** Colonnes d'avant `0017_dish_macros_and_targets.sql`. */
-const LEGACY_DISH_COLUMNS = "id, name, description, photo_url, calories, protein_g, meal_slots";
 
 function mapDishRow(row: DishRow, ingRows: IngredientRow[]): Dish {
   return {
@@ -55,7 +48,7 @@ function mapDishRow(row: DishRow, ingRows: IngredientRow[]): Dish {
     proteinG: toNumberOrNull(row.protein_g),
     carbsG: toNumberOrNull(row.carbs_g),
     fatG: toNumberOrNull(row.fat_g),
-    nutritionEstimated: row.nutrition_estimated === true,
+    nutritionEstimated: row.nutrition_estimated,
     mealSlots: normalizeMealSlots(row.meal_slots),
     ingredients: ingRows.map((r) => ({
       ingredientId: r.ingredient_id,
@@ -77,17 +70,13 @@ export async function fetchDishes(): Promise<Dish[]> {
   const userId = await getCurrentUserId();
   if (!userId) return [];
 
-  const selectDishes = (columns: string) =>
-    supabase
-      .from("dishes")
-      .select(columns)
-      .eq("user_id", userId)
-      .order("name") as unknown as Promise<Result<DishRow>>;
-
-  let { data, error } = await selectDishes(DISH_COLUMNS);
-  if (isMissingColumnError(error)) {
-    ({ data, error } = await selectDishes(LEGACY_DISH_COLUMNS));
-  }
+  const { data, error } = (await supabase
+    .from("dishes")
+    .select(
+      "id, name, description, photo_url, calories, protein_g, carbs_g, fat_g, nutrition_estimated, meal_slots"
+    )
+    .eq("user_id", userId)
+    .order("name")) as Result<DishRow>;
 
   if (error || !data) {
     console.warn("Impossible de charger les plats", error);
@@ -317,18 +306,10 @@ export async function saveDish(
   };
   if (photoUrl !== undefined) payload.photo_url = photoUrl;
 
-  const upsertDish = (values: Record<string, unknown>) =>
-    supabase
-      .from("dishes")
-      .upsert(values as never, { onConflict: "id" } as never)
-      .select("id") as unknown as Promise<Result<{ id: string }>>;
-
-  let savedResult = await upsertDish(payload);
-  if (isMissingColumnError(savedResult.error)) {
-    // 0017 pas encore appliquée : on enregistre le plat sans glucides/lipides.
-    const { carbs_g: _carbs, fat_g: _fat, nutrition_estimated: _est, ...legacy } = payload;
-    savedResult = await upsertDish(legacy);
-  }
+  const savedResult = (await supabase
+    .from("dishes")
+    .upsert(payload as never, { onConflict: "id" } as never)
+    .select("id")) as Result<{ id: string }>;
 
   if (savedResult.error) {
     throw describeError("Impossible d'enregistrer le plat", savedResult.error);

@@ -131,7 +131,7 @@ const PROTEINS: ProteinSource[] = [
     label: "blanc de poulet",
     patterns: [
       "escalope", "اسكالوب", "سكالوب", "blanc de poulet", "filet de poulet",
-      "chich taouk", "شيش طاووق", "=dinde", "ديك رومي",
+      "chich taouk", "شيش طاووق", "=dinde", "dindon", "ديك رومي",
     ],
     per100g: m(110, 23, 0, 2),
   },
@@ -217,7 +217,8 @@ const PROTEINS: ProteinSource[] = [
     generic: true,
     label: "viande",
     patterns: [
-      "=لحم", "=لحمه", "قديد", "viande", "l7am", "=lham", "l7em", "=lhem", "kadid", "9did",
+      "=لحم", "=لحمه", "قديد", "viande", "l7am", "=lham", "l7em", "=lhem", "=lahm", "=lahma",
+      "kadid", "9did",
     ],
     per100g: m(190, 20, 0, 12),
   },
@@ -320,6 +321,11 @@ interface FoodEntry {
   meatG?: number;
   /** Éléments déjà contenus dans le plat (ne pas les ajouter une 2e fois). */
   includes?: string[];
+  /**
+   * Base « faible » (mode de cuisson ou plat générique : au four,
+   * grillades, légumes, marka) : ignorée si un vrai plat est cité.
+   */
+  weak?: boolean;
   /** Élément féculent (le repas a déjà son accompagnement). */
   starchy?: boolean;
   /** Élément de petit-déjeuner/collation (ne fait pas d'un repas un plat complet). */
@@ -329,8 +335,8 @@ interface FoodEntry {
 const BREAD = m(215, 7, 44, 1);
 
 const PASTA = [
-  "مقرون", "معكرون", "مكرون", "makrouna", "ma9rouna", "makarouna", "macaroni", "=pates",
-  "pasta", "spaghetti", "penne", "coquillette",
+  "مقرون", "معكرون", "مكرون", "makrouna", "ma9rouna", "ma9arouna", "makarouna", "macaroni",
+  "=pates", "=pate", "pasta", "spaghetti", "penne", "coquillette",
 ];
 const RICE = ["=رز", "=روز", "=ارز", "riz", "rouz", "=roz"];
 const MILK = ["حليب", "=lait", "7lib", "=hlib"];
@@ -361,7 +367,10 @@ const FOODS: FoodEntry[] = [
   {
     id: "riz-djerbien",
     label: "Riz djerbien",
-    patterns: ["رز جربي", "روز جربي", "جربي", "jerbi", "djerbi", "riz djerbien"],
+    patterns: [
+      "رز جربي", "روز جربي", "rouz jerbi", "rouz djerbi", "riz jerbi", "riz djerbien", "=roz jerbi",
+      "جربي", "jerbi", "djerbi",
+    ],
     macros: m(580, 12, 92, 17),
     kind: "base",
     starchy: true,
@@ -388,14 +397,16 @@ const FOODS: FoodEntry[] = [
   {
     id: "salade-mechouia",
     label: "Salade méchouia",
-    combo: [SALAD, ["مشوي", "mechouia", "mechwia", "grillee"]],
+    combo: [SALAD, ["مشوي", "mechouia", "mechwia"]],
     macros: m(195, 2.5, 10, 15),
     kind: "side",
   },
   {
     id: "salade-mechouia",
     label: "Salade méchouia",
-    patterns: ["مشويه", "mechouia", "mechwia", "mechouiya", "mechwiya"],
+    patterns: [
+      "مشويه", "mechouia", "mechwia", "mechouiya", "mechwiya", "felfel mechwi", "فلفل مشوي",
+    ],
     macros: m(195, 2.5, 10, 15),
     kind: "side",
   },
@@ -416,6 +427,14 @@ const FOODS: FoodEntry[] = [
       "croissant", "كرواسو", "كرواسا", "pain au chocolat", "chocolatine", "viennoiserie",
     ],
     macros: m(260, 5, 30, 13),
+    kind: "side",
+    light: true,
+  },
+  {
+    id: "chocolat",
+    label: "pâte à tartiner",
+    patterns: ["nutella", "نوتيلا", "pate a tartiner", "chocolat", "شكلاط", "=choco"],
+    macros: m(110, 1, 12, 6),
     kind: "side",
     light: true,
   },
@@ -475,6 +494,40 @@ const FOODS: FoodEntry[] = [
   },
 
   // — Plats principaux —
+  {
+    id: "roule",
+    label: "Roulé / feuilleté",
+    patterns: ["pate feuillete", "feuillete", "=roule", "=roules", "tarte", "quiche", "=bourek", "بورك"],
+    macros: m(520, 10, 40, 35),
+    kind: "base",
+    starchy: true,
+    meatG: 120,
+  },
+  {
+    id: "curry",
+    label: "Curry / butter chicken avec riz",
+    patterns: ["butter chicken", "curry", "كاري", "tikka", "korma", "massala", "masala"],
+    macros: m(700, 13, 90, 31),
+    kind: "base",
+    starchy: true,
+    defaultProtein: "poulet",
+  },
+  {
+    id: "kumpir",
+    label: "Kumpir (pomme de terre farcie)",
+    patterns: ["kampir", "kumpir"],
+    macros: m(500, 12, 60, 22),
+    kind: "base",
+    starchy: true,
+  },
+  {
+    id: "mosli",
+    label: "Mosli (au four, pommes de terre)",
+    patterns: ["mosli", "=mesli", "مصلي"],
+    macros: m(370, 6, 50, 15),
+    kind: "base",
+    starchy: true,
+  },
   {
     id: "lasagne",
     label: "Lasagnes",
@@ -560,7 +613,9 @@ const FOODS: FoodEntry[] = [
   {
     id: "rechta",
     label: "Rechta / nouasser",
-    patterns: ["رشته", "نواصر", "شعريه", "rechta", "nwasser", "nouasser", "vermicelle"],
+    patterns: [
+      "رشته", "نواصر", "شعريه", "rechta", "nwasser", "nouasser", "vermicelle", "cheveux d ange",
+    ],
     macros: m(580, 17, 85, 19.5),
     kind: "base",
     starchy: true,
@@ -599,6 +654,7 @@ const FOODS: FoodEntry[] = [
     kind: "base",
     bread: true,
     noDefaultMeat: true,
+    meatG: 100,
     includes: ["oeufs"],
   },
   {
@@ -705,7 +761,9 @@ const FOODS: FoodEntry[] = [
   {
     id: "pois-chiches",
     label: "Pois chiches",
-    patterns: ["=حمص", "pois chiche", "hommos", "houmous", "houmos", "7ommos", "hummus"],
+    patterns: [
+      "=حمص", "pois chiche", "hommos", "hommous", "=homs", "houmous", "houmos", "7ommos", "hummus",
+    ],
     macros: m(490, 19, 55, 20),
     kind: "base",
     bread: true,
@@ -733,12 +791,16 @@ const FOODS: FoodEntry[] = [
     patterns: ["كوشه", "=فور", "au four", "koucha", "forno", "روتي", "=roti"],
     macros: m(330, 5, 40, 15),
     kind: "base",
+    weak: true,
     starchy: true,
   },
   {
     id: "pommes-de-terre",
     label: "Pommes de terre",
-    patterns: ["بطاط", "batata", "patate", "pomme de terre", "pommes de terre", "=pdt"],
+    patterns: [
+      "بطاط", "batata", "patate", "=pat douce", "baby pot", "pomme de terre", "pommes de terre",
+      "=pdt",
+    ],
     macros: m(370, 6, 50, 15),
     kind: "base",
     starchy: true,
@@ -746,7 +808,7 @@ const FOODS: FoodEntry[] = [
   {
     id: "riz",
     label: "Riz",
-    patterns: [...RICE, "=ريز", "risotto", "biryani", "paella", "curry", "كاري"],
+    patterns: [...RICE, "=ريز", "risotto", "biryani", "paella", "kabsa", "كبسه"],
     macros: m(485, 9, 86, 11),
     kind: "base",
     starchy: true,
@@ -754,7 +816,7 @@ const FOODS: FoodEntry[] = [
   {
     id: "boulgour",
     label: "Boulgour",
-    patterns: ["برغل", "بورغل", "borghol", "boulgour", "bulgur", "boulghour"],
+    patterns: ["برغل", "بورغل", "borghol", "boulgour", "bulgur", "boulghour", "bourghoul", "burghul"],
     macros: m(470, 13.5, 77, 11.5),
     kind: "base",
     starchy: true,
@@ -768,6 +830,7 @@ const FOODS: FoodEntry[] = [
     ],
     macros: m(140, 2, 9, 10),
     kind: "base",
+    weak: true,
     bread: true,
   },
   {
@@ -776,10 +839,11 @@ const FOODS: FoodEntry[] = [
     patterns: [
       "خضره", "خضار", "khodra", "5odra", "legume", "jardiniere", "ratatouille", "courgette",
       "aubergine", "=chou", "epinard", "brocoli", "=قرع", "بتنجان", "باذنجان", "بادنجان",
-      "سبانخ", "=سلق", "شيفلور", "كرنب", "بروكلي", "بسباس",
+      "سبانخ", "=سلق", "شيفلور", "كرنب", "بروكلي", "بسباس", "champignon", "فطر",
     ],
     macros: m(225, 4, 15, 16),
     kind: "base",
+    weak: true,
   },
   {
     id: "marka",
@@ -790,6 +854,7 @@ const FOODS: FoodEntry[] = [
     ],
     macros: m(230, 3.5, 17, 16),
     kind: "base",
+    weak: true,
     bread: true,
   },
 
@@ -949,12 +1014,11 @@ const FOODS: FoodEntry[] = [
     light: true,
   },
   {
-    id: "chocolat",
-    label: "pâte à tartiner",
-    patterns: ["nutella", "نوتيلا", "pate a tartiner", "chocolat", "شكلاط", "=choco"],
-    macros: m(110, 1, 12, 6),
+    id: "tahina",
+    label: "tahina",
+    patterns: ["tahina", "tahini", "طحينه"],
+    macros: m(180, 5, 6, 16),
     kind: "side",
-    light: true,
   },
   {
     id: "beurre",
@@ -1185,21 +1249,29 @@ export function estimateDish(input: DishEstimateInput): DishEstimate {
 
   const included = new Set(foods.flatMap((f) => f.includes ?? []));
   const kept = foods.filter((f) => !included.has(f.id));
-  const base = kept.find((f) => f.kind === "base");
+  // Plats de base : tous les « vrais » plats cités (« riz patate douce »
+  // = moitié de chaque) ; une base faible (au four, grillades…) seulement
+  // s'il n'y en a aucun.
+  const allBases = kept.filter((f) => f.kind === "base");
+  const strongBases = allBases.filter((f) => !f.weak);
+  const bases = strongBases.length > 0 ? strongBases : allBases.slice(0, 1);
   const sides = kept.filter((f) => f.kind === "side" && f.id !== "pain");
+  const starchyBase = bases.some((b) => b.starchy);
   // Pain : plat qui se mange avec (ملوخية…), pain cité, ou ragoût (« مرقة »)
   // sans féculent — pas pour un couscous dont la sauce s'appelle aussi مرقة.
-  const stew = foods.some((f) => f.id === "marka") && !base?.starchy;
+  const stew = foods.some((f) => f.id === "marka") && !starchyBase;
   let bread =
     !included.has("pain") &&
-    (Boolean(base?.bread) || stew || kept.some((f) => f.id === "pain" || (f.kind === "side" && f.bread)));
+    (bases.some((b) => b.bread) ||
+      stew ||
+      kept.some((f) => f.id === "pain" || (f.kind === "side" && f.bread)));
 
   const total: Macros = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 };
   const parts: string[] = [];
   let recognized = true;
   let breadLabel = "pain";
 
-  if (!base && sides.length === 0 && !bread && proteins.length === 0) {
+  if (bases.length === 0 && sides.length === 0 && !bread && proteins.length === 0) {
     // Rien de reconnu : ordre de grandeur selon le moment du repas.
     recognized = false;
     const fallback = isMain
@@ -1209,7 +1281,7 @@ export function estimateDish(input: DishEstimateInput): DishEstimate {
         : FALLBACK.snack;
     addScaled(total, fallback);
     parts.push("plat non reconnu : estimation générique");
-  } else if (isMain && !base) {
+  } else if (isMain && bases.length === 0) {
     // Repas fait d'éléments (« escalope frites », « سلاطة بالتن ») : sans
     // féculent cité, on compte du pain pour l'accompagnement.
     const isMeal = proteins.length > 0 || sides.some((s) => !s.light);
@@ -1220,9 +1292,11 @@ export function estimateDish(input: DishEstimateInput): DishEstimate {
     }
   }
 
-  if (base) {
-    addScaled(total, base.macros);
-    parts.push(viaIngredients ? `${base.label} (d'après les ingrédients)` : base.label);
+  if (bases.length > 0) {
+    for (const base of bases) addScaled(total, base.macros, 1 / bases.length);
+    const label = bases.map((b) => b.label).join(" + ");
+    const share = bases.length === 2 ? " (moitié de chaque)" : bases.length > 2 ? " (à parts égales)" : "";
+    parts.push(viaIngredients ? `${label} (d'après les ingrédients)` : `${label}${share}`);
   }
   for (const side of sides) {
     addScaled(total, side.macros);
@@ -1234,22 +1308,24 @@ export function estimateDish(input: DishEstimateInput): DishEstimate {
   }
 
   // 3. Viande.
-  const contextG = base?.meatG ?? (isMain ? MAIN_MEAT_G : OTHER_MEAT_G);
+  const defaultG = isMain ? MAIN_MEAT_G : OTHER_MEAT_G;
+  const contextG = bases.length > 0 ? Math.min(...bases.map((b) => b.meatG ?? defaultG)) : defaultG;
   const portionOf = (source: ProteinSource) =>
     Math.min(
       (isMain ? source.portionMain : source.portionOther) ?? Infinity,
       contextG
     );
 
+  const wantsDefaultMeat = !recognized || bases.some((b) => !b.noDefaultMeat);
   if (proteins.length > 0 && contextG > 0) {
     for (const source of proteins) {
       const grams = Math.round(portionOf(source) / proteins.length);
       addScaled(total, source.per100g, grams / 100);
       parts.push(`${source.label} ≈ ${grams} g`);
     }
-  } else if (isMain && contextG > 0 && (!recognized || (base && !base.noDefaultMeat))) {
-    const source =
-      (base?.defaultProtein && PROTEIN_BY_ID.get(base.defaultProtein)) || UNKNOWN_MEAT;
+  } else if (isMain && contextG > 0 && wantsDefaultMeat) {
+    const defaultId = bases.find((b) => b.defaultProtein)?.defaultProtein;
+    const source = (defaultId && PROTEIN_BY_ID.get(defaultId)) || UNKNOWN_MEAT;
     const grams = portionOf(source);
     addScaled(total, source.per100g, grams / 100);
     parts.push(

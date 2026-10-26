@@ -3,7 +3,6 @@ import { getSupabase } from "@/lib/supabase/client";
 import { fetchDemoDishesForCycles, isDemoMode } from "@/lib/localDemo";
 import { normalizeMealSlots, type Dish } from "@/features/dishes/types";
 import { toNumberOrNull } from "@/features/nutrition/types";
-import { isMissingColumnError } from "@/lib/supabase/schemaCompat";
 import type { MealSlot } from "@/lib/supabase/database.types";
 import { MEAL_SLOTS } from "./types";
 
@@ -25,29 +24,24 @@ export async function fetchDishesForCycles(): Promise<Dish[]> {
   const supabase = getSupabase();
   if (!supabase) return [];
 
-  type DishRow = {
-    id: string;
-    name: string;
-    calories: number | null;
-    protein_g: number | string | null;
-    // Absents tant que 0017 n'est pas appliquée (lecture de repli).
-    carbs_g?: number | string | null;
-    fat_g?: number | string | null;
-    nutrition_estimated?: boolean | null;
-    meal_slots: string[] | null;
+  const { data, error } = (await supabase
+    .from("dishes")
+    .select("id, name, calories, protein_g, carbs_g, fat_g, nutrition_estimated, meal_slots")
+    .order("name")) as {
+    data:
+      | {
+          id: string;
+          name: string;
+          calories: number | null;
+          protein_g: number | string | null;
+          carbs_g: number | string | null;
+          fat_g: number | string | null;
+          nutrition_estimated: boolean;
+          meal_slots: string[] | null;
+        }[]
+      | null;
+    error: PostgrestError | null;
   };
-  const selectDishes = (columns: string) =>
-    supabase.from("dishes").select(columns).order("name") as unknown as Promise<{
-      data: DishRow[] | null;
-      error: PostgrestError | null;
-    }>;
-
-  let { data, error } = await selectDishes(
-    "id, name, calories, protein_g, carbs_g, fat_g, nutrition_estimated, meal_slots"
-  );
-  if (isMissingColumnError(error)) {
-    ({ data, error } = await selectDishes("id, name, calories, protein_g, meal_slots"));
-  }
 
   if (error || !data) {
     console.warn("Impossible de charger les plats", error);
