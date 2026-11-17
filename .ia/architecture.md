@@ -227,6 +227,9 @@ Dossier `src/features/nutrition/` :
   `suggestIngredients` ; `IngredientInput.tsx` (champ partagé) ;
   `api.ts` → `renameIngredient` (RPC `rename_ingredient`, ou
   `renameDemoIngredient` en mode démo).
+- `src/features/dishes/catalogPhotos.ts` : photos du catalogue
+  (`public/dishes/<slug>.webp`, `catalogPhotoUrl`, crédits
+  `CATALOG_PHOTO_CREDITS`) ; `PhotoCredits.tsx` (ligne de crédit, modale).
 - `src/features/dishes/catalogMatching.ts` : `findSimilarDish`,
   `findCatalogDish`, `suggestedDishName`, `catalogSuggestions`,
   `catalogDishToDraft` ; `cuisinePreference.ts` (réglage + hook

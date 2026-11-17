@@ -6,6 +6,35 @@ haut du fichier (ordre antéchronologique).
 
 ---
 
+## 2026-11-17 — Photos des plats du catalogue
+
+**Contexte** : les suggestions de plats n'avaient pas d'image. Demande :
+de vraies photos, téléchargées si besoin depuis le PC de l'utilisateur
+(l'environnement de l'assistant n'accède pas aux sites d'images).
+
+**Décision** :
+- 75 photos sur 79 plats, choisies une à une sur **Wikimedia Commons**
+  (licences libres : CC0, domaine public, CC BY, CC BY-SA), recadrées en
+  480 × 360 et compressées en WebP (≈ 2 Mo au total), dans
+  `public/dishes/<slug>.webp` : livrées avec l'app, disponibles hors
+  ligne (précache Serwist). Pas de photo convenable pour Marqa de
+  blettes, Nouasser au poulet, Borghol à la viande, Poêlée de poulet aux
+  légumes (l'initiale s'affiche).
+- Crédits (auteur, licence, page source) dans
+  `src/features/dishes/catalogPhotos.ts`, affichés sous la photo d'un plat
+  et dans « Crédits des photos » (onglet Suggestions) — obligatoire pour
+  CC BY / BY-SA.
+- Ajouter une suggestion copie aussi sa photo (`photo_url` =
+  `/dishes/<slug>.webp`, pas d'envoi dans le stockage Supabase) ; une
+  photo personnelle la remplace comme avant.
+
+**Alternatives écartées** : Unsplash / Pexels (pas d'API sans clé,
+plats tunisiens absents) ; images chargées à la volée depuis Commons
+(pas d'affichage hors ligne, dépendance à un site tiers) ; illustrations
+dessinées (moins parlantes que des photos, choix de l'utilisateur).
+
+---
+
 ## 2026-11-17 — Noms harmonisés : catalogues d'ingrédients et de plats
 
 **Contexte** : chaque compte saisissait ses ingrédients et plats à la

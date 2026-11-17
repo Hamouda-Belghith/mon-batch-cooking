@@ -9,6 +9,8 @@ import { fetchIngredients, saveDish } from "./api";
 import { IngredientInput } from "@/features/ingredients/IngredientInput";
 import { renameIngredient } from "@/features/ingredients/api";
 import { catalogDishToDraft, findCatalogDish, findSimilarDish } from "./catalogMatching";
+import { catalogPhotoCredit } from "./catalogPhotos";
+import { PhotoCreditLine } from "./PhotoCredits";
 import { nameKey } from "@/lib/text";
 import { MEAL_SLOTS } from "@/features/cycles/types";
 import type { MealSlot } from "@/lib/supabase/database.types";
@@ -166,6 +168,9 @@ export function DishFormModal({
       ? knownDish
       : null;
 
+  // Photo issue du catalogue : ses crédits s'affichent dessous (licence libre).
+  const photoCredit = catalogPhotoCredit(photoPreview);
+
   function applyCatalogDish() {
     if (!catalogOffer) return;
     setName(catalogOffer.name);
@@ -173,6 +178,10 @@ export function DishFormModal({
     const draft = catalogDishToDraft(catalogOffer, mealSlots);
     setMealSlots(draft.mealSlots);
     setIngredients(draft.ingredients);
+    if (!photoPreview && draft.photoUrl) {
+      setPhotoPreview(draft.photoUrl);
+      setPhotoChanged(true);
+    }
   }
 
   function editNutrition(key: MacroKey, value: string) {
@@ -412,6 +421,7 @@ export function DishFormModal({
               />
             </div>
           </div>
+          {photoCredit ? <PhotoCreditLine credit={photoCredit} /> : null}
         </div>
 
         <fieldset className="ingredients">

@@ -3,6 +3,11 @@
 Date: 2026-11-17
 
 Résumé:
+- **Photos des plats suggérés** (2026-11-17) : 75 photos Wikimedia
+  Commons sous licence libre dans `public/dishes/`, crédits dans
+  `src/features/dishes/catalogPhotos.ts` (affichés sous la photo et dans
+  « Crédits des photos »). Visibles dans l'onglet Suggestions, le choix
+  d'un plat du Planning, et copiées sur le plat ajouté.
 - **Noms harmonisés : catalogues d'ingrédients et de plats** (2026-11-17).
   Saisie d'ingrédient avec suggestions (ingrédients déjà utilisés +
   catalogue de ≈ 320 ingrédients, alias derja), « Tu voulais dire … ? »

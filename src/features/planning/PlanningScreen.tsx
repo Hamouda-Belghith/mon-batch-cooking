@@ -22,6 +22,7 @@ import { saveDish } from "@/features/dishes/api";
 import { CUISINE_LABELS, type CatalogDish } from "@/features/dishes/catalog";
 import { catalogDishToDraft, catalogSuggestions } from "@/features/dishes/catalogMatching";
 import { useCuisinePreference } from "@/features/dishes/cuisinePreference";
+import { catalogPhotoUrl } from "@/features/dishes/catalogPhotos";
 import { cellKey, useMealDrag, type CellRef } from "./useMealDrag";
 import { PlanningTabs } from "./PlanningTabs";
 import {
@@ -1383,9 +1384,20 @@ export function PlanningScreen() {
                         disabled={busy}
                         onClick={() => void handleAddSuggestion(suggestion)}
                       >
-                        <span>
-                          {suggestion.name}
-                          <span className="dish-pick-sub">{CUISINE_LABELS[suggestion.cuisine]}</span>
+                        <span className="dish-pick-label">
+                          {catalogPhotoUrl(suggestion.name) ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={catalogPhotoUrl(suggestion.name)!}
+                              alt=""
+                              className="dish-pick-thumb"
+                              loading="lazy"
+                            />
+                          ) : null}
+                          <span>
+                            {suggestion.name}
+                            <span className="dish-pick-sub">{CUISINE_LABELS[suggestion.cuisine]}</span>
+                          </span>
                         </span>
                         <Icon name="plus" size={18} />
                       </button>

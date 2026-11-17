@@ -4,6 +4,7 @@ import { estimateDish } from "@/features/nutrition/estimate";
 import { DISH_CATALOG, type CatalogDish, type Cuisine } from "./catalog";
 import { MEAL_SLOTS } from "@/features/cycles/types";
 import type { Dish } from "./types";
+import { catalogPhotoUrl } from "./catalogPhotos";
 
 /*
  * Noms de plats : doublons parmi les plats de l'utilisateur, plats connus
@@ -98,13 +99,14 @@ export function catalogSuggestions({
 
 /**
  * Plat prêt à enregistrer à partir d'un plat du catalogue : ingrédients
- * du catalogue et apports estimés d'après le nom. `extraSlots` : créneaux
- * à ajouter (ex. le repas de la case du planning).
+ * du catalogue, photo du catalogue s'il y en a une, apports estimés
+ * d'après le nom. `extraSlots` : créneaux à ajouter (ex. le repas de la
+ * case du planning).
  */
 export function catalogDishToDraft(
   dish: CatalogDish,
   extraSlots: readonly MealSlot[] = []
-): Omit<Dish, "id" | "photoUrl"> {
+): Omit<Dish, "id"> {
   const mealSlots = MEAL_SLOTS.filter((slot) => dish.mealSlots.includes(slot) || extraSlots.includes(slot));
   const ingredients = dish.ingredients.map((ing) => ({
     ingredientId: "",
@@ -125,5 +127,6 @@ export function catalogDishToDraft(
     ...macros,
     nutritionEstimated: true,
     ingredients,
+    photoUrl: catalogPhotoUrl(dish.name),
   };
 }

@@ -17,6 +17,8 @@ import {
   suggestedDishName,
 } from "./catalogMatching";
 import { useCuisinePreference } from "./cuisinePreference";
+import { catalogPhotoUrl } from "./catalogPhotos";
+import { PhotoCreditsModal } from "./PhotoCredits";
 import { SettingsModal } from "@/features/settings/SettingsModal";
 import { estimateDish } from "@/features/nutrition/estimate";
 import { MACROS, hasAnyMacro } from "@/features/nutrition/types";
@@ -68,6 +70,7 @@ export function DishesScreen() {
   const [tab, setTab] = useState<"mine" | "suggestions">("mine");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const cuisines = useCuisinePreference();
 
   async function load() {
@@ -257,6 +260,19 @@ export function DishesScreen() {
             <ul className="dish-list">
               {suggestions.map((suggestion) => (
                 <li key={suggestion.name} className="dish-row suggestion-row">
+                  {catalogPhotoUrl(suggestion.name) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={catalogPhotoUrl(suggestion.name)!}
+                      alt=""
+                      className="dish-thumb"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="dish-thumb dish-thumb-empty" aria-hidden="true">
+                      {suggestion.name.charAt(0)}
+                    </span>
+                  )}
                   <span className="dish-row-main">
                     <span className="dish-row-name">{suggestion.name}</span>
                     <span className="dish-row-meta">
@@ -281,6 +297,12 @@ export function DishesScreen() {
               ))}
             </ul>
           )}
+          <p className="suggestions-credits">
+            Photos : Wikimedia Commons, sous licences libres.{" "}
+            <button type="button" className="link-button" onClick={() => setCreditsOpen(true)}>
+              Crédits des photos
+            </button>
+          </p>
         </section>
       ) : null}
 
@@ -382,6 +404,7 @@ export function DishesScreen() {
       ) : null}
 
       {settingsOpen ? <SettingsModal onClose={() => setSettingsOpen(false)} /> : null}
+      {creditsOpen ? <PhotoCreditsModal onClose={() => setCreditsOpen(false)} /> : null}
     </div>
   );
 }
