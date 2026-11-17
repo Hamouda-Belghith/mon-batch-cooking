@@ -18,6 +18,10 @@ import {
 import type { MealSlot } from "@/lib/supabase/database.types";
 import { DISH_CATEGORY_LABELS, type Dish } from "@/features/dishes/types";
 import { DishFormModal } from "@/features/dishes/DishFormModal";
+import { saveDish } from "@/features/dishes/api";
+import { CUISINE_LABELS, type CatalogDish } from "@/features/dishes/catalog";
+import { catalogDishToDraft, catalogSuggestions } from "@/features/dishes/catalogMatching";
+import { useCuisinePreference } from "@/features/dishes/cuisinePreference";
 import { cellKey, useMealDrag, type CellRef } from "./useMealDrag";
 import { PlanningTabs } from "./PlanningTabs";
 import {
@@ -187,6 +191,7 @@ export function PlanningScreen() {
   // Recherche dans la liste des plats de la modale de choix, et création
   // d'un plat sans quitter le Planning (le plat créé remplit la case).
   const [dishSearch, setDishSearch] = useState("");
+  const cuisines = useCuisinePreference();
   const [creatingDish, setCreatingDish] = useState(false);
 
   const [pendingDishId, setPendingDishId] = useState<string | null | undefined>(
@@ -592,6 +597,22 @@ export function PlanningScreen() {
     handlePickDish(dishId);
   }
 
+  /** Ajoute un plat du catalogue aux plats de l'utilisateur, puis le pose dans la case. */
+  async function handleAddSuggestion(suggestion: CatalogDish) {
+    if (!editingCell) return;
+    const dishId = crypto.randomUUID();
+    setBusy(true);
+    try {
+      await saveDish({ ...catalogDishToDraft(suggestion, [editingCell.mealSlot]), id: dishId });
+    } catch (err) {
+      reportError(err, "Ajout du plat impossible");
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
+    await handleDishCreated(dishId);
+  }
+
   async function handleScopeChoice(scope: MealEditScope) {
     if (!editingCell || pendingDishId === undefined) return;
     const { date, mealSlot } = editingCell;
@@ -627,6 +648,17 @@ export function PlanningScreen() {
     normalizedDishSearch === ""
       ? slotDishes
       : slotDishes.filter((dish) => dish.name.toLowerCase().includes(normalizedDishSearch));
+  // Plats du catalogue (cuisines choisies dans les Réglages) que
+  // l'utilisateur n'a pas encore : quelques-uns par défaut, tous en recherche.
+  const allSuggestions = editingCell
+    ? catalogSuggestions({
+        cuisines,
+        mealSlot: editingCell.mealSlot,
+        query: dishSearch,
+        existingNames: dishes.map((dish) => dish.name),
+      })
+    : [];
+  const pickSuggestions = normalizedDishSearch === "" ? allSuggestions.slice(0, 6) : allSuggestions;
 
   const visibleSlots = MEAL_SLOTS.filter(
     (slot) =>
@@ -1212,6 +1244,7 @@ export function PlanningScreen() {
           dish={null}
           initialName={dishSearch.trim()}
           initialMealSlots={[editingCell.mealSlot]}
+          existingDishes={dishes}
           onClose={() => setCreatingDish(false)}
           onSaved={handleDishCreated}
         />
@@ -1338,6 +1371,26 @@ export function PlanningScreen() {
                     Aucun plat ne correspond à « {dishSearch.trim()} ». « Nouveau plat » le crée
                     avec ce nom.
                   </p>
+                ) : null}
+                {pickSuggestions.length > 0 ? (
+                  <>
+                    <p className="dish-pick-heading">Suggestions à ajouter à tes plats</p>
+                    {pickSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.name}
+                        type="button"
+                        className="dish-pick-item dish-pick-suggestion"
+                        disabled={busy}
+                        onClick={() => void handleAddSuggestion(suggestion)}
+                      >
+                        <span>
+                          {suggestion.name}
+                          <span className="dish-pick-sub">{CUISINE_LABELS[suggestion.cuisine]}</span>
+                        </span>
+                        <Icon name="plus" size={18} />
+                      </button>
+                    ))}
+                  </>
                 ) : null}
               </div>
             </div>

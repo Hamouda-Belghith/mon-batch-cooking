@@ -10,6 +10,8 @@ import {
 } from "@/lib/localDemo";
 import { toNumberOrNull, type NullableMacros } from "@/features/nutrition/types";
 import { normalizeMealSlots, type Dish } from "./types";
+import { formatName, nameKey } from "@/lib/text";
+import { canonicalIngredientName } from "@/features/ingredients/matching";
 
 // Les types du schéma sont écrits à la main (régénération prévue via
 // `supabase gen types`). L'inférence de supabase-js produit des `never`
@@ -232,21 +234,34 @@ async function deleteDishPhoto(photoUrl: string): Promise<void> {
  * ingrédients sans que personne ne le sache.
  */
 export async function saveDish(
-  dish: Omit<Dish, "id" | "photoUrl"> & { id?: string; photoUrl?: string | null }
+  input: Omit<Dish, "id" | "photoUrl"> & { id?: string; photoUrl?: string | null }
 ): Promise<void> {
+  // Noms harmonisés avant tout enregistrement : nom du plat mis en forme,
+  // ingrédient au nom déjà connu (casse, accents, pluriel près) réutilisé.
+  const knownIngredients = await fetchIngredients();
+  const dish = {
+    ...input,
+    name: formatName(input.name),
+    ingredients: input.ingredients
+      .filter((ing) => ing.ingredientName.trim() !== "")
+      .map((ing) => ({
+        ...ing,
+        ingredientName: canonicalIngredientName(ing.ingredientName, knownIngredients),
+      })),
+  };
+
   // La base refuse deux fois le même ingrédient dans un plat (unique
   // dish_id + ingredient_id) : on prévient avant d'écrire quoi que ce soit.
   const seen = new Set<string>();
   for (const ing of dish.ingredients) {
-    const name = ing.ingredientName.trim();
-    if (!name) continue;
-    if (seen.has(name.toLowerCase())) {
+    const key = nameKey(ing.ingredientName);
+    if (seen.has(key)) {
       throw new Error(
-        `L'ingrédient « ${name} » apparaît plusieurs fois dans ce plat. ` +
+        `L'ingrédient « ${ing.ingredientName} » apparaît plusieurs fois dans ce plat. ` +
           "Garde une seule ligne et additionne les quantités."
       );
     }
-    seen.add(name.toLowerCase());
+    seen.add(key);
   }
 
   if (isDemoMode()) {
@@ -312,6 +327,10 @@ export async function saveDish(
     .select("id")) as Result<{ id: string }>;
 
   if (savedResult.error) {
+    // Index unique (user_id, lower(name)), voir 0019.
+    if (savedResult.error.code === "23505") {
+      throw new Error(`Un plat s'appelle déjà « ${dish.name} ». Choisis-le dans la liste ou change le nom.`);
+    }
     throw describeError("Impossible d'enregistrer le plat", savedResult.error);
   }
   if (!savedResult.data?.[0]) {

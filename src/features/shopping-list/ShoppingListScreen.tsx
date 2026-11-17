@@ -7,6 +7,7 @@ import { Icon } from "@/components/ui/Icon";
 import { useConfirm, useToast } from "@/components/ui/Feedback";
 import { UNITS } from "@/lib/units";
 import { fetchIngredients } from "@/features/dishes/api";
+import { IngredientInput } from "@/features/ingredients/IngredientInput";
 import { formatDateLong, formatQuantity, type DurationUnit } from "@/lib/date";
 import {
   useShoppingList,
@@ -106,72 +107,6 @@ function SourceRow({
       >
         <Icon name="close" size={18} />
       </button>
-    </div>
-  );
-}
-
-/**
- * Champ texte avec suggestions filtrées d'un catalogue existant
- * (ingrédients déjà utilisés, dans un plat ou ajoutés ici) : cliquer une
- * suggestion la retient telle quelle, sinon le texte saisi sert à créer
- * un nouvel article.
- */
-function IngredientSearchField({
-  id,
-  label,
-  value,
-  onChange,
-  suggestions,
-}: {
-  id: string;
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  suggestions: string[];
-}) {
-  const [open, setOpen] = useState(false);
-  const normalized = value.trim().toLowerCase();
-  const matches =
-    normalized === ""
-      ? []
-      : suggestions
-          .filter((s) => s.toLowerCase().includes(normalized) && s.toLowerCase() !== normalized)
-          .slice(0, 8);
-
-  return (
-    <div className="field autocomplete add-form-name">
-      <label htmlFor={id}>{label}</label>
-      <input
-        id={id}
-        className="input"
-        autoComplete="off"
-        placeholder="Ex : Sacs poubelle"
-        value={value}
-        onChange={(e) => {
-          onChange(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 120)}
-      />
-      {open && matches.length > 0 ? (
-        <ul className="autocomplete-list">
-          {matches.map((m) => (
-            <li key={m}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  onChange(m);
-                  setOpen(false);
-                }}
-              >
-                {m}
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </div>
   );
 }
@@ -468,13 +403,16 @@ export function ShoppingListScreen() {
           <section className="panel">
             <h2 className="panel-heading">Ajouter un article</h2>
             <form className="add-form" onSubmit={(e) => void handleAddExtra(e)}>
-              <IngredientSearchField
-                id="extra-name"
-                label="Article"
-                value={addName}
-                onChange={setAddName}
-                suggestions={ingredientSuggestions}
-              />
+              <div className="field add-form-name">
+                <label htmlFor="extra-name">Article</label>
+                <IngredientInput
+                  id="extra-name"
+                  value={addName}
+                  onChange={setAddName}
+                  knownNames={ingredientSuggestions}
+                  placeholder="Ex : Sacs poubelle"
+                />
+              </div>
               <div className="field add-form-qty">
                 <label htmlFor="extra-quantity">Quantité</label>
                 <input

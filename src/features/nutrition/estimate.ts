@@ -1,5 +1,9 @@
 import type { MealSlot } from "@/lib/supabase/database.types";
 import { MACROS, type Macros } from "./types";
+import { normalizeText } from "@/lib/text";
+
+// Réexporté pour les appelants existants ; la fonction vit dans `lib/text.ts`.
+export { normalizeText };
 
 /*
  * Estimation des apports d'un plat (une portion) à partir de son nom,
@@ -30,28 +34,6 @@ import { MACROS, type Macros } from "./types";
 
 // ---------------------------------------------------------------------------
 // Normalisation et recherche de motifs
-
-/**
- * Minuscules, sans accents ni signes diacritiques arabes, variantes de
- * lettres unifiées (أ إ آ → ا, ة → ه, ى → ي, ڨ → ق…), ponctuation → espace.
- */
-export function normalizeText(input: string): string {
-  return input
-    .toLowerCase()
-    .replace(/œ/g, "oe")
-    .replace(/æ/g, "ae")
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .replace(/ـ/g, "")
-    .replace(/ٱ/g, "ا")
-    .replace(/ة/g, "ه")
-    .replace(/[ىی]/g, "ي")
-    .replace(/ک/g, "ك")
-    .replace(/[ڨگ]/g, "ق")
-    .replace(/ڤ/g, "ف")
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
 
 const ARABIC = "\\u0600-\\u06FF";
 const ARABIC_LETTER = new RegExp(`[${ARABIC}]`);

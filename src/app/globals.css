@@ -1316,6 +1316,11 @@ button.week-day-head:hover {
   gap: 0.75rem;
 }
 
+/* Sans ça, une longue liste d'ingrédients élargit la carte au-delà de l'écran. */
+.dish-list > li {
+  min-width: 0;
+}
+
 .dish-row {
   display: flex;
   align-items: center;
@@ -1665,7 +1670,10 @@ button.week-day-head:hover {
 }
 
 .autocomplete-list button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   width: 100%;
   min-height: 2.5rem;
   padding: 0.45rem 0.6rem;
@@ -1677,6 +1685,97 @@ button.week-day-head:hover {
 
 .autocomplete-list button:hover {
   background: var(--basil-tint);
+}
+
+/* ---------- Noms harmonisés (ingrédients et plats) ---------- */
+
+/* Alias qui a fait remonter une suggestion (« djej » pour Poulet). */
+.autocomplete-hint {
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+/* « Tu voulais dire … ? » sous un champ d'ingrédient. */
+.name-suggestion {
+  align-self: flex-start;
+  margin-top: 0.3rem;
+  padding: 0.15rem 0.6rem;
+  border: 1px dashed var(--basil);
+  border-radius: 999px;
+  background: var(--basil-tint);
+  color: var(--basil-deep);
+  font-size: 0.8125rem;
+  font-weight: 650;
+  text-align: left;
+}
+
+.ingredient-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Doublon ou plat connu, sous le nom du plat. */
+.name-notice {
+  margin: -0.5rem 0 1rem;
+}
+
+.name-notice > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.dish-name-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--basil);
+}
+
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.suggestions-intro {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.9375rem;
+}
+
+.suggestion-row:hover {
+  border-color: var(--line);
+}
+
+.dish-pick-heading {
+  margin: 0;
+  padding: 0.75rem 0.9rem 0.3rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dish-pick-sub {
+  margin-left: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.dish-pick-suggestion {
+  color: var(--basil-deep);
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .list-section {
@@ -2340,7 +2439,7 @@ button.week-day-head:hover {
     border-bottom: 1px solid var(--line);
   }
 
-  .ingredient-row > .input:first-child {
+  .ingredient-row > :first-child {
     grid-column: 1 / -1;
   }
 

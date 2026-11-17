@@ -65,7 +65,7 @@ Tables principales :
 
 | Table                  | Rôle                                                             |
 |------------------------|-------------------------------------------------------------------|
-| `ingredients`          | Référentiel unique des ingrédients                                |
+| `ingredients`          | Ingrédients de chaque compte, au nom du catalogue quand il existe (voir « Noms harmonisés ») |
 | `dishes`               | Plats (dont `photo_url`, apports `calories`/`protein_g`/`carbs_g`/`fat_g` + `nutrition_estimated`, voir plus bas) |
 | `dish_ingredients`     | Composition d'un plat (ingrédient + quantité + unité)              |
 | `meal_cycles`          | Motif unique de répétition (fréquence libre, en semaines), piloté depuis le Planning |
@@ -215,6 +215,29 @@ Dossier `src/features/nutrition/` :
 - `TargetsModal.tsx`, `DayNutritionModal.tsx` — panneau Objectifs et
   détail d'un jour, ouverts depuis le Planning.
 
+**Noms harmonisés** (2026-11-17, migrations `0018` et `0019`) :
+- Catalogues statiques : `src/features/ingredients/catalog.ts`
+  (`INGREDIENT_CATALOG`, rayons `INGREDIENT_CATEGORIES`, type
+  `CatalogIngredientName`) et `src/features/dishes/catalog.ts`
+  (`DISH_CATALOG`, cuisines `tunisienne | classique | monde`).
+- `src/lib/text.ts` : `normalizeText` (déplacé depuis `estimate.ts`, qui
+  le réexporte), `nameKey`, `editDistance`, `isLikelyTypo`, `formatName`.
+- `src/features/ingredients/matching.ts` : `findCatalogIngredient`,
+  `suggestedIngredientName`, `canonicalIngredientName`,
+  `suggestIngredients` ; `IngredientInput.tsx` (champ partagé) ;
+  `api.ts` → `renameIngredient` (RPC `rename_ingredient`, ou
+  `renameDemoIngredient` en mode démo).
+- `src/features/dishes/catalogMatching.ts` : `findSimilarDish`,
+  `findCatalogDish`, `suggestedDishName`, `catalogSuggestions`,
+  `catalogDishToDraft` ; `cuisinePreference.ts` (réglage + hook
+  `useCuisinePreference`) ; `src/features/settings/SettingsModal.tsx`.
+- Base : fonction `public.rename_ingredient(uuid, text)` (SECURITY
+  INVOKER, réservée au rôle `authenticated`), colonne
+  `user_settings.dish_cuisines text[]` (NULL = toutes), index uniques
+  `idx_ingredients_user_id_lower_name` et `idx_dishes_user_id_lower_name`.
+  L'index historique `(user_id, name)` reste : l'upsert des ingrédients
+  s'appuie dessus.
+
 **Préférences d'affichage du Planning** (créneaux visibles, totaux) :
 stockées en `localStorage` par appareil (clés `planning-show-*`), pas en
 base — ce sont des préférences d'affichage, pas des données partagées.
@@ -249,11 +272,14 @@ src/
   components/ui/          → Button, Field, Modal (feuille en bas sur téléphone, modales
                             empilables), Feedback (useConfirm / useToast), Icon (SVG)
   features/
-    dishes/               → plats et leurs ingrédients
+    dishes/               → plats et leurs ingrédients, catalogue de plats, suggestions
+    ingredients/          → catalogue d'ingrédients, rapprochement des noms, champ de saisie
+    settings/             → modale Réglages (cuisines des plats proposés)
     cycles/               → constantes repas + types du motif (plus d'UI dédiée)
     planning/             → planning + répétition (repeat.ts) + semaines enregistrées (savedWeeks.ts)
     shopping-list/        → génération + offline de la liste de courses
   lib/
+    text.ts               → normalisation et comparaison de noms
     supabase/             → client Supabase + types générés du schéma
     localDemo.ts          → backend demo local (fallback sans Supabase)
     db/                   → configuration Dexie (IndexedDB)

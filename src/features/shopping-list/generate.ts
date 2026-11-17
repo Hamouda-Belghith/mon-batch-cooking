@@ -8,6 +8,8 @@ import {
   type DurationUnit,
 } from "@/lib/date";
 import { refreshShoppingList } from "./useShoppingList";
+import { fetchIngredients } from "@/features/dishes/api";
+import { canonicalIngredientName } from "@/features/ingredients/matching";
 import {
   addDemoExtraItem,
   generateDemoShoppingList,
@@ -186,7 +188,8 @@ async function upsertShoppingIngredient(
 /**
  * Ajoute un article à la section « extra » (courses supplémentaires,
  * liste continue — pas de période). Réutilise l'ingrédient référentiel
- * existant s'il porte déjà ce nom (voir `fetchIngredients`), sinon en
+ * existant s'il porte le même nom à l'écriture près (casse, accents,
+ * pluriel : voir `canonicalIngredientName`), sinon en
  * crée un nouveau. Fusionne avec un article déjà présent (même
  * ingrédient + unité) plutôt que de dupliquer une ligne. L'article est
  * coché (donc dans « À acheter »), y compris s'il existait décoché.
@@ -202,9 +205,11 @@ export async function addExtraItem(
     throw new Error("La quantité doit être un nombre supérieur à 0.");
   }
   const normalizedUnit = unit.trim() || "pièce";
+  // Même nom à l'écriture près qu'un ingrédient connu → on réutilise ce nom.
+  const ingredientName = canonicalIngredientName(trimmedName, await fetchIngredients());
 
   if (isDemoMode()) {
-    await addDemoExtraItem(trimmedName, quantity, normalizedUnit);
+    await addDemoExtraItem(ingredientName, quantity, normalizedUnit);
     return;
   }
 
@@ -214,7 +219,7 @@ export async function addExtraItem(
   const userId = await getCurrentUserId();
   if (!userId) throw new Error("Utilisateur non connecté");
 
-  const ingredientId = await upsertShoppingIngredient(userId, trimmedName);
+  const ingredientId = await upsertShoppingIngredient(userId, ingredientName);
 
   const { data: existingRows, error: existingError } = (await supabase
     .from("shopping_list_items")

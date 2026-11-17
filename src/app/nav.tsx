@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useSignOut } from "@/features/auth/AuthContext";
 import { useShoppingList } from "@/features/shopping-list/useShoppingList";
 import { Icon, type IconName } from "@/components/ui/Icon";
+import { SettingsModal } from "@/features/settings/SettingsModal";
 
 const LINKS: { href: string; label: string; icon: IconName }[] = [
   { href: "/", label: "Planning", icon: "calendar" },
@@ -39,6 +40,7 @@ export function Nav() {
   const pathname = usePathname();
   const signOut = useSignOut();
   const toBuy = useToBuyCount();
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const tabs = LINKS.map((link) => {
     // Le Planning a deux vues : Semaines (/) et Cycle (/cycle).
@@ -70,14 +72,25 @@ export function Nav() {
               </Link>
             ))}
           </nav>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm signout"
-            onClick={() => void signOut()}
-          >
-            <Icon name="logout" size={18} />
-            <span className="signout-label">Déconnexion</span>
-          </button>
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm signout"
+              aria-label="Réglages"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Icon name="sliders" size={18} />
+              <span className="signout-label">Réglages</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm signout"
+              onClick={() => void signOut()}
+            >
+              <Icon name="logout" size={18} />
+              <span className="signout-label">Déconnexion</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -97,6 +110,8 @@ export function Nav() {
           </Link>
         ))}
       </nav>
+
+      {settingsOpen ? <SettingsModal onClose={() => setSettingsOpen(false)} /> : null}
     </>
   );
 }

@@ -6,9 +6,18 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
 import { useConfirm, useToast } from "@/components/ui/Feedback";
 import { formatQuantity } from "@/lib/date";
-import { deleteDish, fetchDishes, saveDishNutrition } from "./api";
+import { deleteDish, fetchDishes, saveDish, saveDishNutrition } from "./api";
 import { DishFormModal } from "./DishFormModal";
 import { DISH_CATEGORY_LABELS, type Dish } from "./types";
+import { CUISINE_LABELS, type CatalogDish } from "./catalog";
+import {
+  catalogDishToDraft,
+  catalogSuggestions,
+  findSimilarDish,
+  suggestedDishName,
+} from "./catalogMatching";
+import { useCuisinePreference } from "./cuisinePreference";
+import { SettingsModal } from "@/features/settings/SettingsModal";
 import { estimateDish } from "@/features/nutrition/estimate";
 import { MACROS, hasAnyMacro } from "@/features/nutrition/types";
 
@@ -32,6 +41,16 @@ function NutritionFacts({ dish }: { dish: Dish }) {
   );
 }
 
+/**
+ * Nom du catalogue à proposer pour un plat (« ma9rouna poulet » →
+ * Makrouna au poulet), sauf si un autre plat porte déjà ce nom.
+ */
+function knownNameFor(dish: Dish, dishes: Dish[]): string | null {
+  const suggested = suggestedDishName(dish.name);
+  if (!suggested) return null;
+  return findSimilarDish(suggested, dishes, dish.id)?.exact ? null : suggested;
+}
+
 /** Plats sans aucun apport renseigné : ceux que l'estimation en lot remplit. */
 function withoutNutrition(dishes: Dish[]): Dish[] {
   return dishes.filter((dish) => !hasAnyMacro(dish));
@@ -46,6 +65,10 @@ export function DishesScreen() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<Dish | null>(null);
   const [estimating, setEstimating] = useState(false);
+  const [tab, setTab] = useState<"mine" | "suggestions">("mine");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adding, setAdding] = useState<string | null>(null);
+  const cuisines = useCuisinePreference();
 
   async function load() {
     setDishes(await fetchDishes());
@@ -126,7 +149,25 @@ export function DishesScreen() {
     }
   }
 
+  /** Ajoute un plat du catalogue à « Mes plats », avec ses ingrédients. */
+  async function handleAddSuggestion(suggestion: CatalogDish) {
+    setAdding(suggestion.name);
+    try {
+      await saveDish(catalogDishToDraft(suggestion));
+      await load();
+      toast(`« ${suggestion.name} » ajouté à tes plats.`);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "Ajout impossible. Réessaie.", "error");
+    } finally {
+      setAdding(null);
+    }
+  }
+
   const missingNutrition = dishes ? withoutNutrition(dishes).length : 0;
+  const suggestions =
+    dishes === null
+      ? []
+      : catalogSuggestions({ cuisines, query: search, existingNames: dishes.map((d) => d.name) });
 
   const normalizedSearch = search.trim().toLowerCase();
   const filteredDishes =
@@ -158,7 +199,31 @@ export function DishesScreen() {
         </Button>
       </header>
 
-      {dishes !== null && dishes.length > 0 ? (
+      {dishes !== null ? (
+        <div className="segmented" role="tablist" aria-label="Plats">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "mine"}
+            className={`segment ${tab === "mine" ? "active" : ""}`}
+            onClick={() => setTab("mine")}
+          >
+            Mes plats
+            {dishes.length > 0 ? <span className="segment-count">{dishes.length}</span> : null}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "suggestions"}
+            className={`segment ${tab === "suggestions" ? "active" : ""}`}
+            onClick={() => setTab("suggestions")}
+          >
+            Suggestions
+          </button>
+        </div>
+      ) : null}
+
+      {dishes !== null && (dishes.length > 0 || tab === "suggestions") ? (
         <div className="search-field">
           <Icon name="search" size={18} />
           <input
@@ -172,7 +237,54 @@ export function DishesScreen() {
         </div>
       ) : null}
 
-      {missingNutrition > 0 ? (
+      {tab === "suggestions" && dishes !== null ? (
+        <section className="suggestions">
+          <p className="suggestions-intro">
+            Cuisines proposées : {cuisines.map((c) => CUISINE_LABELS[c]).join(", ")}.{" "}
+            <button type="button" className="link-button" onClick={() => setSettingsOpen(true)}>
+              Modifier
+            </button>
+          </p>
+          {suggestions.length === 0 ? (
+            <div className="empty-state">
+              <p className="empty-title">
+                {search.trim()
+                  ? `Aucune suggestion ne correspond à « ${search.trim()} »`
+                  : "Tous les plats proposés sont déjà dans tes plats"}
+              </p>
+            </div>
+          ) : (
+            <ul className="dish-list">
+              {suggestions.map((suggestion) => (
+                <li key={suggestion.name} className="dish-row suggestion-row">
+                  <span className="dish-row-main">
+                    <span className="dish-row-name">{suggestion.name}</span>
+                    <span className="dish-row-meta">
+                      <span className="dish-categories">
+                        {CUISINE_LABELS[suggestion.cuisine]} ·{" "}
+                        {suggestion.mealSlots.map((slot) => DISH_CATEGORY_LABELS[slot]).join(" · ")}
+                      </span>
+                      <span className="dish-ingredients">
+                        {suggestion.ingredients.map((ing) => ing.name).join(", ")}
+                      </span>
+                    </span>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={adding !== null}
+                    onClick={() => void handleAddSuggestion(suggestion)}
+                  >
+                    {adding === suggestion.name ? "Ajout…" : "Ajouter"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {tab === "suggestions" ? null : missingNutrition > 0 ? (
         <div className="notice notice-info estimate-banner">
           <span>
             <Icon name="sparkle" size={18} />
@@ -186,7 +298,7 @@ export function DishesScreen() {
         </div>
       ) : null}
 
-      {filteredDishes === null ? (
+      {tab === "suggestions" ? null : filteredDishes === null ? (
         <Spinner />
       ) : dishes && dishes.length === 0 ? (
         <div className="empty-state">
@@ -196,7 +308,12 @@ export function DishesScreen() {
             Ajoute un plat avec ses ingrédients : il servira à remplir le planning et à
             générer la liste de courses.
           </p>
-          <Button onClick={openCreate}>Créer le premier plat</Button>
+          <div className="row">
+            <Button onClick={openCreate}>Créer le premier plat</Button>
+            <Button variant="secondary" onClick={() => setTab("suggestions")}>
+              Voir les suggestions
+            </Button>
+          </div>
         </div>
       ) : filteredDishes.length === 0 ? (
         <div className="empty-state">
@@ -207,7 +324,9 @@ export function DishesScreen() {
         </div>
       ) : (
         <ul className="dish-list">
-          {filteredDishes.map((dish) => (
+          {filteredDishes.map((dish) => {
+            const knownName = knownNameFor(dish, dishes ?? []);
+            return (
             <li key={dish.id}>
               <button type="button" className="dish-row" onClick={() => openEdit(dish)}>
                 {dish.photoUrl ? (
@@ -233,18 +352,25 @@ export function DishesScreen() {
                         ? "Aucun ingrédient"
                         : dish.ingredients.map((ing) => ing.ingredientName).join(", ")}
                     </span>
+                    {knownName ? (
+                      <span className="dish-name-hint">
+                        <Icon name="sparkle" size={14} /> Nom connu : {knownName}
+                      </span>
+                    ) : null}
                   </span>
                 </span>
                 <Icon name="chevronRight" size={18} className="dish-row-chevron" />
               </button>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 
       {creating ? (
         <DishFormModal
           dish={editing}
+          existingDishes={dishes ?? []}
           onClose={() => setCreating(false)}
           onDelete={editing ? () => void handleDelete(editing) : undefined}
           onSaved={async () => {
@@ -254,6 +380,8 @@ export function DishesScreen() {
           }}
         />
       ) : null}
+
+      {settingsOpen ? <SettingsModal onClose={() => setSettingsOpen(false)} /> : null}
     </div>
   );
 }

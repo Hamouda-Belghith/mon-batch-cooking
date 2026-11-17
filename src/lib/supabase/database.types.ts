@@ -202,6 +202,8 @@ export interface Database {
           target_protein_g: number | null;
           target_carbs_g: number | null;
           target_fat_g: number | null;
+          /** Cuisines des plats suggérés (0018) ; null = toutes. */
+          dish_cuisines: string[] | null;
           updated_at: string;
         };
         Insert: {
@@ -211,6 +213,7 @@ export interface Database {
           target_protein_g?: number | null;
           target_carbs_g?: number | null;
           target_fat_g?: number | null;
+          dish_cuisines?: string[] | null;
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["user_settings"]["Insert"]>;

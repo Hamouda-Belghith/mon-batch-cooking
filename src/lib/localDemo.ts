@@ -87,6 +87,8 @@ interface DemoState {
   extraListName?: string;
   /** Objectifs nutritionnels du jour ; absent = aucun objectif. */
   nutritionTargets?: NullableMacros | null;
+  /** Cuisines des plats suggérés (voir `cuisinePreference.ts`) ; absent = toutes. */
+  dishCuisines?: string[] | null;
 }
 
 function createState(): DemoState {
@@ -874,6 +876,91 @@ export async function saveDemoNutritionTargets(targets: NullableMacros): Promise
   const state = loadState();
   state.nutritionTargets = targets;
   saveState(state);
+}
+
+export async function fetchDemoDishCuisines(): Promise<string[] | null> {
+  return loadState().dishCuisines ?? null;
+}
+
+export async function saveDemoDishCuisines(cuisines: string[]): Promise<void> {
+  const state = loadState();
+  state.dishCuisines = cuisines;
+  saveState(state);
+}
+
+/**
+ * Renomme un ingrédient partout (plats et liste de courses). S'il existe
+ * déjà un ingrédient de ce nom, les deux sont fusionnés : même logique
+ * que la fonction SQL `rename_ingredient` (0018).
+ */
+export async function renameDemoIngredient(id: string, newName: string): Promise<void> {
+  const name = newName.replace(/\s+/g, " ").trim();
+  if (!name) throw new Error("Le nouveau nom est vide.");
+
+  const state = loadState();
+  const source = state.ingredients.find((ingredient) => ingredient.id === id);
+  if (!source) throw new Error("Ingrédient introuvable.");
+  const target =
+    state.ingredients.find(
+      (ingredient) => ingredient.id !== id && normalizeName(ingredient.name) === normalizeName(name)
+    ) ?? source;
+
+  if (target !== source) {
+    const kept: DemoDishIngredient[] = [];
+    for (const line of state.dishIngredients) {
+      if (line.ingredientId !== source.id) {
+        kept.push(line);
+        continue;
+      }
+      // Le plat contient déjà l'ingrédient cible : une seule ligne, quantités additionnées si même unité.
+      const twin = state.dishIngredients.find(
+        (other) => other.dishId === line.dishId && other.ingredientId === target.id
+      );
+      if (twin) {
+        if (twin.unit === line.unit) twin.quantity += line.quantity;
+        continue;
+      }
+      kept.push({ ...line, ingredientId: target.id });
+    }
+    state.dishIngredients = kept;
+    state.ingredients = state.ingredients.filter((ingredient) => ingredient.id !== source.id);
+  }
+  target.name = name;
+  saveState(state);
+
+  const db = getDb();
+  const items = await db.shoppingListItems
+    .filter((item) => item.ingredientId === source.id || item.ingredientId === target.id)
+    .toArray();
+  for (const item of items) {
+    if (item.ingredientId === source.id && target !== source) {
+      const twin = items.find(
+        (other) =>
+          other.ingredientId === target.id &&
+          other.section === item.section &&
+          other.unit === item.unit &&
+          other.periodStart === item.periodStart &&
+          other.periodEnd === item.periodEnd
+      );
+      if (twin) {
+        twin.quantity += item.quantity;
+        twin.isChecked = twin.isChecked || item.isChecked;
+        await db.shoppingListItems.update(twin.id, {
+          quantity: twin.quantity,
+          isChecked: twin.isChecked,
+          ingredientName: name,
+          updatedAt: now(),
+        });
+        await db.shoppingListItems.delete(item.id);
+        continue;
+      }
+    }
+    await db.shoppingListItems.update(item.id, {
+      ingredientId: target.id,
+      ingredientName: name,
+      updatedAt: now(),
+    });
+  }
 }
 
 export function isDemoMode(): boolean {

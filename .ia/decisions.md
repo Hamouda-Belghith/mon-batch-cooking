@@ -6,6 +6,79 @@ haut du fichier (ordre antéchronologique).
 
 ---
 
+## 2026-11-17 — Noms harmonisés : catalogues d'ingrédients et de plats
+
+**Contexte** : chaque compte saisissait ses ingrédients et plats à la
+main, d'où des doublons qui cassent la liste de courses (`escalope` /
+`Escalope`, trois noms pour l'oignon : `bsal`, `Bsal`, `onion`, trois
+« sac poubelle ») et des plats en double (`pate saumon` /
+`pate au saumon`). Demande : proposer des noms connus (ingrédients
+classiques et tunisiens, plats tunisiens et classiques), migrer les
+ingrédients existants vers ces noms partout, retirer les plats en double
+sans les rattacher au catalogue, suggérer des plats selon une préférence
+de cuisine fixée dans les réglages.
+
+**Décision** :
+- **Catalogues statiques dans le code**, pas en base :
+  `src/features/ingredients/catalog.ts` (≈ 320 ingrédients : nom
+  canonique français, rayon, unité par défaut, alias derja arabizi/arabe,
+  anglais, fautes courantes) et `src/features/dishes/catalog.ts`
+  (79 plats tunisiens / classiques / du monde, pour 2 personnes, typés
+  sur les noms du catalogue d'ingrédients). Même principe que le
+  dictionnaire d'`estimate.ts` : fonctionne en mode démo et hors ligne,
+  aucune table partagée ni règle RLS à écrire. En base, chaque compte
+  garde ses propres ingrédients, simplement sous le nom canonique.
+- **Rapprochement des noms** (`src/lib/text.ts` + `ingredients/matching.ts`
+  + `dishes/catalogMatching.ts`, fonctions pures) : clé de comparaison
+  insensible à la casse, aux accents, au pluriel en -s/-x et aux petits
+  mots (`pate saumon` = `Pâtes au saumon`) ; puis alias ; puis faute de
+  frappe probable (distance d'édition 1, 2 pour les noms longs, aucune
+  sous 5 lettres). Même clé → appliqué sans demander ; alias ou faute →
+  proposé ; correspondance partielle → seulement dans l'autocomplétion
+  (trop souvent fausse pour un renommage).
+- **Ingrédients** : `IngredientInput` remplace le `<datalist>` (formulaire
+  de plat et courses supplémentaires) : suggestions des ingrédients déjà
+  utilisés et du catalogue (« djej » → Poulet), puis « Tu voulais dire
+  … ? ». Sur un ingrédient déjà enregistré : « Renommer en … partout »,
+  via la fonction SQL `rename_ingredient` (0018) qui fusionne avec
+  l'ingrédient du même nom s'il existe (plats et liste de courses, une
+  transaction). À l'enregistrement, un nom identique à l'écriture près à
+  un ingrédient connu réutilise celui-ci (`canonicalIngredientName`).
+- **Plats** : nom mis en forme à l'enregistrement (espaces, majuscule
+  initiale) ; création bloquée si un plat porte déjà le même nom à
+  l'écriture près (simple avertissement si le nom est très proche) ;
+  « Plat connu : … » propose le nom du catalogue (et ses ingrédients pour
+  un nouveau plat) sans jamais l'imposer, aussi signalé dans la liste
+  (« Nom connu »). Onglet « Suggestions » dans Plats et suggestions dans
+  le choix d'un plat du Planning : un plat du catalogue est **copié**
+  dans les plats de l'utilisateur (modifiable ensuite), jamais utilisé
+  tel quel.
+- **Réglage « Plats proposés »** (bouton Réglages de la barre du haut) :
+  cuisines des suggestions, `user_settings.dish_cuisines` (0018), copie
+  locale `dish-cuisines` comme pour le nom des courses supplémentaires.
+- **Données existantes** (0019) : 102 ingrédients renommés vers le
+  catalogue dans tous les comptes (doublons d'un même compte fusionnés),
+  « Felfel bar abid » gardé et ajouté au catalogue ; plats : doublons
+  d'un même compte retirés (on garde le plus utilisé dans le planning,
+  catégories réunies), noms mis en forme, **aucun plat renommé vers le
+  catalogue** (les correspondances n'étaient pas assez fiables : c'est
+  l'utilisateur qui choisit, via « Nom connu »). Index uniques
+  `(user_id, lower(name))` sur `ingredients` et `dishes` comme filet de
+  sécurité. Sauvegarde des tables avant migration dans le schéma
+  `backup_2026_11_17` (non exposé par l'API).
+
+**Alternatives écartées** : catalogue en base (lignes `user_id NULL`
+partagées) — demandait de revoir les règles RLS (aujourd'hui tout
+compte peut modifier ces lignes), un seed SQL et une copie du catalogue
+pour le mode démo, sans gain pour quelques comptes ; extensions
+Postgres `pg_trgm` / `unaccent` — la comparaison se fait côté client
+sur quelques centaines de noms, et `unaccent` n'est pas utilisable dans
+un index ; renommer automatiquement les plats vers le catalogue — refusé
+par l'utilisateur, les rapprochements de plats sont trop approximatifs ;
+bouton « Fusionner » — non souhaité, la fusion passe par « Renommer ».
+
+---
+
 ## 2026-10-26 — Vue « Cycle » à la place de la vue « Mois »
 
 **Contexte** : la vue Mois montrait la rotation et un calendrier de

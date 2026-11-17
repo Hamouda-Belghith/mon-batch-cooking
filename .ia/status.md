@@ -1,8 +1,26 @@
 # État actuel du projet (résumé rapide)
 
-Date: 2026-10-26
+Date: 2026-11-17
 
 Résumé:
+- **Noms harmonisés : catalogues d'ingrédients et de plats** (2026-11-17).
+  Saisie d'ingrédient avec suggestions (ingrédients déjà utilisés +
+  catalogue de ≈ 320 ingrédients, alias derja), « Tu voulais dire … ? »
+  et « Renommer en … partout » (fonction SQL `rename_ingredient`, fusion
+  si le nom existe déjà). Plats : nom mis en forme, doublon bloqué,
+  « Plat connu / Nom connu » proposé depuis un catalogue de 79 plats,
+  onglet « Suggestions » (Plats) et suggestions dans le choix d'un plat
+  du Planning, filtrés par le réglage « Plats proposés » (bouton
+  Réglages, `user_settings.dish_cuisines`). Migrations
+  `0018_ingredient_rename_and_cuisines.sql` (schéma) et
+  `0019_harmonize_existing_names.sql` (données : 102 ingrédients
+  renommés vers le catalogue dans tous les comptes, doublons de plats
+  retirés, noms de plats mis en forme, index uniques insensibles à la
+  casse). **Migrations appliquées** le 2026-11-17 via le connecteur
+  Supabase, après un test à blanc annulé (119 → 107 ingrédients, 55 → 53
+  plats, aucun repas du planning orphelin ; vérifié avant/après).
+  Sauvegarde avant migration : schéma `backup_2026_11_17` (non exposé
+  par l'API, à supprimer quand plus utile). Voir `.ia/decisions.md`.
 - **Vue « Cycle » à la place de la vue « Mois »** (2026-10-26, `/cycle`,
   onglets « Semaines | Cycle » ; `/mois` redirige). Montre seulement les
   semaines du cycle : la semaine en cours en tête, puis les suivantes

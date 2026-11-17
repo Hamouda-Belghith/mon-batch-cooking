@@ -6,6 +6,10 @@ import { Modal } from "@/components/ui/Modal";
 import { Icon } from "@/components/ui/Icon";
 import { Field, TextareaField } from "@/components/ui/Field";
 import { fetchIngredients, saveDish } from "./api";
+import { IngredientInput } from "@/features/ingredients/IngredientInput";
+import { renameIngredient } from "@/features/ingredients/api";
+import { catalogDishToDraft, findCatalogDish, findSimilarDish } from "./catalogMatching";
+import { nameKey } from "@/lib/text";
 import { MEAL_SLOTS } from "@/features/cycles/types";
 import type { MealSlot } from "@/lib/supabase/database.types";
 import { describeEstimate, estimateDish } from "@/features/nutrition/estimate";
@@ -48,8 +52,21 @@ function toInputValues(values: NullableMacros): Record<MacroKey, string> {
   };
 }
 
-function EmptyIngredientRow(): DishIngredient {
+/**
+ * Ligne d'ingrédient du formulaire. `originalName` : nom chargé depuis la
+ * base ; `renameEverywhere` : le nom proposé par le catalogue a été
+ * accepté pour cet ingrédient déjà enregistré, il sera renommé dans tous
+ * les plats et la liste de courses.
+ */
+type FormIngredient = DishIngredient & { originalName?: string; renameEverywhere?: boolean };
+
+function EmptyIngredientRow(): FormIngredient {
   return { ingredientId: "", ingredientName: "", quantity: 1, unit: "pièce" };
+}
+
+/** Ingrédient déjà enregistré dont le nom n'a pas été retouché dans le formulaire. */
+function isSavedUnchanged(ing: FormIngredient): boolean {
+  return ing.ingredientId !== "" && ing.ingredientName === ing.originalName;
 }
 
 /**
@@ -64,9 +81,12 @@ export function DishFormModal({
   onClose,
   onSaved,
   onDelete,
+  existingDishes = [],
 }: {
   /** Plat à modifier ; `null` = nouveau plat. */
   dish: Dish | null;
+  /** Plats de l'utilisateur, pour éviter d'en créer un deuxième au même nom. */
+  existingDishes?: readonly { id: string; name: string }[];
   /** Nom prérempli pour un nouveau plat (ex. texte déjà tapé dans une recherche). */
   initialName?: string;
   /** Catégories précochées pour un nouveau plat (ex. le repas de la case du planning). */
@@ -90,8 +110,10 @@ export function DishFormModal({
   const [manualNutrition, setManualNutrition] = useState<Record<MacroKey, string>>(() =>
     toInputValues(dish ?? { calories: null, proteinG: null, carbsG: null, fatG: null })
   );
-  const [ingredients, setIngredients] = useState<DishIngredient[]>(
-    dish && dish.ingredients.length > 0 ? dish.ingredients : [EmptyIngredientRow()]
+  const [ingredients, setIngredients] = useState<FormIngredient[]>(
+    dish && dish.ingredients.length > 0
+      ? dish.ingredients.map((ing) => ({ ...ing, originalName: ing.ingredientName }))
+      : [EmptyIngredientRow()]
   );
   const [ingredientSuggestions, setIngredientSuggestions] = useState<string[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string | null>(dish?.photoUrl ?? null);
@@ -129,6 +151,30 @@ export function DishFormModal({
       : toInputValues({ calories: null, proteinG: null, carbsG: null, fatG: null })
     : manualNutrition;
 
+  // Doublon : même nom (à l'écriture près) qu'un autre plat → bloquant ;
+  // nom très proche → simple avertissement.
+  const similarDish = findSimilarDish(name, existingDishes, dish?.id);
+  const duplicateOf = similarDish?.exact ? similarDish.dish : null;
+
+  // Plat connu du catalogue : proposer son nom (et ses ingrédients pour
+  // un nouveau plat), jamais l'imposer.
+  const knownDish = findCatalogDish(name);
+  const hasIngredients = ingredients.some((ing) => ing.ingredientName.trim() !== "");
+  const knownDishTaken = knownDish ? findSimilarDish(knownDish.name, existingDishes, dish?.id)?.exact : false;
+  const catalogOffer =
+    knownDish && !knownDishTaken && (knownDish.name !== name.trim() || (!dish && !hasIngredients))
+      ? knownDish
+      : null;
+
+  function applyCatalogDish() {
+    if (!catalogOffer) return;
+    setName(catalogOffer.name);
+    if (dish || hasIngredients) return;
+    const draft = catalogDishToDraft(catalogOffer, mealSlots);
+    setMealSlots(draft.mealSlots);
+    setIngredients(draft.ingredients);
+  }
+
   function editNutrition(key: MacroKey, value: string) {
     setManualNutrition({ ...nutritionInputs, [key]: value });
     setNutritionAuto(false);
@@ -152,10 +198,25 @@ export function DishFormModal({
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || mealSlots.length === 0) return;
+    if (!name.trim() || mealSlots.length === 0 || duplicateOf) return;
+    // Deux lignes pour le même ingrédient (ex. « bsal » et « Oignon ») :
+    // on le signale avant de renommer quoi que ce soit.
+    const keys = ingredients.map((ing) => nameKey(ing.ingredientName)).filter(Boolean);
+    const repeated = keys.find((key, i) => keys.indexOf(key) !== i);
+    if (repeated) {
+      setFormError(
+        "Le même ingrédient apparaît sur plusieurs lignes. Garde une seule ligne et additionne les quantités."
+      );
+      return;
+    }
     setSaving(true);
     setFormError(null);
     try {
+      for (const ing of ingredients) {
+        if (ing.renameEverywhere && ing.ingredientId) {
+          await renameIngredient(ing.ingredientId, ing.ingredientName.trim());
+        }
+      }
       await saveDish({
         id: draftId.current,
         name,
@@ -190,7 +251,7 @@ export function DishFormModal({
     );
   }
 
-  function updateIngredient(idx: number, patch: Partial<DishIngredient>) {
+  function updateIngredient(idx: number, patch: Partial<FormIngredient>) {
     setIngredients((prev) =>
       prev.map((ing, i) => (i === idx ? { ...ing, ...patch } : ing))
     );
@@ -207,6 +268,31 @@ export function DishFormModal({
           onChange={(e) => setName(e.target.value)}
           placeholder="Ex : Pâtes bolognaise"
         />
+        {duplicateOf ? (
+          <p className="notice notice-error name-notice" role="alert">
+            « {duplicateOf.name} » existe déjà dans tes plats : choisis-le plutôt que d&apos;en
+            créer un deuxième, ou change le nom.
+          </p>
+        ) : similarDish ? (
+          <p className="notice notice-info name-notice">
+            Ressemble à « {similarDish.dish.name} », que tu as déjà. Vérifie que ce n&apos;est
+            pas le même plat.
+          </p>
+        ) : null}
+        {catalogOffer && !duplicateOf ? (
+          <div className="notice notice-info name-notice">
+            <span>
+              <Icon name="sparkle" size={16} /> Plat connu : « {catalogOffer.name} »
+            </span>
+            <button type="button" className="notice-action" onClick={applyCatalogDish}>
+              {catalogOffer.name !== name.trim()
+                ? dish || hasIngredients
+                  ? "Utiliser ce nom"
+                  : "Utiliser ce plat et ses ingrédients"
+                : "Pré-remplir les ingrédients"}
+            </button>
+          </div>
+        ) : null}
         <TextareaField
           label="Description (optionnel)"
           name="dish-description"
@@ -338,13 +424,22 @@ export function DishFormModal({
           </div>
           {ingredients.map((ing, idx) => (
             <div key={idx} className="ingredient-row">
-              <input
-                list="ingredient-names"
-                className="input"
-                placeholder="Ex : Tomates"
-                aria-label={`Ingrédient ${idx + 1}, nom`}
+              <IngredientInput
+                className="ingredient-name"
                 value={ing.ingredientName}
-                onChange={(e) => updateIngredient(idx, { ingredientName: e.target.value })}
+                knownNames={ingredientSuggestions}
+                placeholder="Ex : Tomates"
+                ariaLabel={`Ingrédient ${idx + 1}, nom`}
+                onChange={(value) =>
+                  updateIngredient(idx, { ingredientName: value, renameEverywhere: false })
+                }
+                {...(isSavedUnchanged(ing)
+                  ? {
+                      renameLabel: (suggested: string) => `Renommer en « ${suggested} » partout`,
+                      onAcceptRename: (suggested: string) =>
+                        updateIngredient(idx, { ingredientName: suggested, renameEverywhere: true }),
+                    }
+                  : {})}
               />
               <input
                 className="input"
@@ -394,11 +489,6 @@ export function DishFormModal({
             Ajouter un ingrédient
           </Button>
         </fieldset>
-        <datalist id="ingredient-names">
-          {ingredientSuggestions.map((suggestion) => (
-            <option key={suggestion} value={suggestion} />
-          ))}
-        </datalist>
 
         {formError ? (
           <div className="notice notice-error" role="alert">
@@ -415,7 +505,10 @@ export function DishFormModal({
           <Button variant="ghost" className="cancel-action" onClick={onClose}>
             Annuler
           </Button>
-          <Button type="submit" disabled={saving || !name.trim() || mealSlots.length === 0}>
+          <Button
+            type="submit"
+            disabled={saving || !name.trim() || mealSlots.length === 0 || duplicateOf !== null}
+          >
             {saving ? "Enregistrement…" : "Enregistrer"}
           </Button>
         </div>

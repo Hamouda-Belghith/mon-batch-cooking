@@ -89,6 +89,17 @@ accueillir d'autres foyers pour l'instant.
 - Rechercher un plat par son nom (ou sa description) depuis l'écran
   Plats, pour retrouver rapidement une recette au fur et à mesure que
   la liste s'agrandit.
+- Noms harmonisés : en saisissant un ingrédient, l'application propose
+  les ingrédients déjà utilisés et ceux de son catalogue (classiques et
+  tunisiens, retrouvables par leur nom en derja : « djej » → Poulet) et
+  propose de renommer un ingrédient qui ressemble à un nom connu — partout,
+  dans tous les plats et la liste de courses. Un plat ne peut pas être
+  créé deux fois sous le même nom (à la casse, aux accents ou au pluriel
+  près) ; un plat qui ressemble à un plat connu se voit proposer ce nom.
+- Suggestions de plats (onglet « Suggestions » de l'écran Plats, et dans
+  le choix d'un plat du Planning) : plats tunisiens, classiques ou du
+  monde selon le réglage « Plats proposés » (bouton Réglages) ; un plat
+  ajouté arrive avec ses ingrédients et ses apports estimés, modifiable.
 
 ## Contraintes
 
